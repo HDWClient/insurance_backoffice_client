@@ -223,6 +223,72 @@
   color: #3b82f6;
 }
 
+/* ── Forgot password ─────────────────────────────────────── */
+
+/* Label row: "Password" on left, "Forgot password?" on right */
+.sa-login-form__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Inline "Forgot password?" trigger */
+.sa-fp-trigger {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: #3b82f6;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.18s;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: transparent;
+}
+
+.sa-fp-trigger:hover {
+  color: #60a5fa;
+  text-decoration-color: #60a5fa;
+}
+
+/* Description text on forgot-password steps */
+.sa-fp-desc {
+  font-size: 13.5px;
+  color: #64748b;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.sa-fp-desc strong {
+  color: #94a3b8;
+}
+
+/* OTP input — larger, centered, monospace */
+.sa-fp-otp-input {
+  font-size: 20px;
+  font-family: monospace;
+  letter-spacing: 0.3em;
+  text-align: center;
+  padding: 14px;
+}
+
+/* Success icon on "done" step */
+.sa-fp-success-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
 @media (max-width: 480px) {
   .sa-login-card {
     padding: 28px 20px 24px;

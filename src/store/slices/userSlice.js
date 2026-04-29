@@ -112,9 +112,6 @@ const userSlice = createSlice({
       state.error = null;
       state.errorCode = null;
     },
-    removeUser(state, action) {
-      state.items = state.items.filter((u) => u.id !== action.payload);
-    },
   },
   extraReducers: (builder) => {
     const pending = (state) => { state.loading = true; state.error = null; state.errorCode = null; };
@@ -186,5 +183,5 @@ const userSlice = createSlice({
   },
 });
 
-export const { clearUserError, removeUser } = userSlice.actions;
+export const { clearUserError } = userSlice.actions;
 export default userSlice.reducer;

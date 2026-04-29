@@ -97,7 +97,7 @@ const roleSlice = createSlice({
     const rejected = (state, action) => { state.loading = false; state.errorCode = action.payload; };
 
     builder
-      .addCase(fetchPermissions.pending, (state) => { state.permissionsLoading = true; })
+      .addCase(fetchPermissions.pending, (state) => { state.permissionsLoading = true; state.errorCode = null; })
       .addCase(fetchPermissions.fulfilled, (state, action) => {
         state.permissionsLoading = false;
         state.permissions = action.payload;

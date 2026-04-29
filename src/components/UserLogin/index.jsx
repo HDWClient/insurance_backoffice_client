@@ -146,7 +146,7 @@ export default function UserLogin() {
                 </div>
               </div>
               <div className="kl-field__forgot">
-                <a href="#" className="kl-field__forgot-link" tabIndex={-1}>Forgot password?</a>
+                <button type="button" className="kl-field__forgot-link" tabIndex={-1}>Forgot password?</button>
               </div>
             </div>
 

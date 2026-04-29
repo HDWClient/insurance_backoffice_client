@@ -1,3 +1,43 @@
+## 2026-04-29 — code-review: session-changed files (8 files)
+
+### [Medium] Form fields cleared on createOrg failure — user loses input
+- **File**: src/components/SuperAdminDashboard/index.jsx:116-118
+- **Issue**: `setName(""); setSlug(""); setErrors({})` runs unconditionally after `apiCreateOrg` regardless of whether it succeeded or failed. User loses typed values on API error.
+- **Suggested fix**: Wrap the clear in `if (apiCreateOrg.fulfilled.match(res))` before clearing
+- **Status**: Fixed (guarded clear behind fulfilled check)
+
+### [Medium] fetchPermissions.pending doesn't reset errorCode — stale error shown during re-fetch
+- **File**: src/store/slices/roleSlice.js:100
+- **Issue**: The `pending` handler for `fetchPermissions` only sets `permissionsLoading = true` but doesn't clear `errorCode`. A previous fetch error stays visible while a new fetch is in-flight.
+- **Suggested fix**: Add `state.errorCode = null` inside the `fetchPermissions.pending` case
+- **Status**: Fixed (added errorCode = null to pending handler)
+
+### [Medium] fetchUserRoles dispatched redundantly after revokeRole — extra API call
+- **File**: src/components/SuperAdminDashboard/index.jsx:536-538
+- **Issue**: `revokeRole.fulfilled` reducer already filters the role out of `userRoles[userId]` locally. `handleRevoke` then dispatches `fetchUserRoles(userId)` again, making a redundant GET call.
+- **Suggested fix**: Remove the `dispatch(fetchUserRoles(userId))` call from `handleRevoke`
+- **Status**: Fixed (removed redundant dispatch)
+
+### [Low] rememberMe state is tracked but never sent to the login API
+- **File**: src/components/UserLogin/index.jsx:22,159
+- **Issue**: `rememberMe` state is wired to the checkbox but `handleSubmit` calls `loginAsync({ email, password })` without it — the checkbox has no backend effect.
+- **Suggested fix**: Pass `rememberMe` to `loginAsync` if the API supports it, or remove the checkbox
+- **Status**: Open
+
+### [Low] href="#" on Forgot password link causes scroll-to-top
+- **File**: src/components/UserLogin/index.jsx:149
+- **Issue**: `<a href="#">` scrolls the page to the top on click in some browsers. Intended as a placeholder but causes unwanted UX side effect.
+- **Suggested fix**: Change to `href="#!"` or replace with a `<button type="button">` element
+- **Status**: Fixed (replaced anchor with button element)
+
+### [Low] removeUser exported from userSlice but never imported anywhere
+- **File**: src/store/slices/userSlice.js:189
+- **Issue**: `removeUser` was added for a delete-removes-row feature that was reverted. The export is now dead code.
+- **Suggested fix**: Remove `removeUser` from the slice reducers and the export line
+- **Status**: Fixed (removed reducer and export)
+
+---
+
 ## 2026-04-29 — code-review: src/
 
 ### [Critical] SuperAdminLogin grants super-admin to any successful login

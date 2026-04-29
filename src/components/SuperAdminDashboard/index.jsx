@@ -113,8 +113,8 @@ function OrgModuleTab({ actions, can }) {
       errs.slug = "Lowercase letters, numbers and hyphens only (2–50 chars)";
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true);
-    await dispatch(apiCreateOrg({ name: name.trim(), slug: slug.trim() }));
-    setName(""); setSlug(""); setErrors({});
+    const res = await dispatch(apiCreateOrg({ name: name.trim(), slug: slug.trim() }));
+    if (apiCreateOrg.fulfilled.match(res)) { setName(""); setSlug(""); setErrors({}); }
     setSaving(false);
   };
 
@@ -534,8 +534,7 @@ function UserModuleTab({ actions, can }) {
   };
 
   const handleRevoke = async (userId, roleId) => {
-    const res = await dispatch(apiRevokeRole({ userId, roleId }));
-    if (apiRevokeRole.fulfilled.match(res)) dispatch(fetchUserRoles(userId));
+    await dispatch(apiRevokeRole({ userId, roleId }));
   };
 
   const handleConfirm = async () => {
@@ -1430,7 +1429,11 @@ export default function SuperAdminDashboard() {
 
   const modules = Object.keys(moduleActionMap)
     .filter((m) => !EXCLUDED_MODULES.has(m))
-    .sort();
+    .sort((a, b) => {
+      if (a === "AUDIT" && b !== "AUDIT") return 1;
+      if (a !== "AUDIT" && b === "AUDIT") return -1;
+      return a.localeCompare(b);
+    });
 
   // can("ROLE_MANAGE") → true if user holds that permission code
   const can = (code) => myPermissions.some((p) => p.code === code);

@@ -1,156 +1,527 @@
-.ul-page {
-  min-height: 100vh;
-  background: #0f172a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-}
+/*
+ * Stitch design tokens (from tailwind.config in generated HTML)
+ * ─────────────────────────────────────────────────────────────
+ * primary-container:        #1a2744   ← left panel BG
+ * background:               #faf8ff   ← page BG
+ * primary:                  #04122e   ← headings, links
+ * on-primary:               #ffffff   ← text on dark panel
+ * on-background:            #0d1b37   ← body text
+ * on-surface:               #0d1b37   ← input text
+ * on-surface-variant:       #45464d   ← labels, muted text
+ * outline:                  #75777e   ← icons
+ * outline-variant:          #c5c6ce   ← borders, decoration
+ * surface-container-low:    #f2f3ff   ← right panel BG
+ * surface-container-lowest: #ffffff   ← input focus BG
+ * surface-container-highest:#d9e2ff   ← input default BG
+ * secondary-fixed:          #83fba5   ← CTA button
+ * secondary-fixed-dim:      #66dd8b   ← CTA button hover
+ * on-secondary-fixed:       #00210c   ← text on CTA button
+ * secondary:                #006d36   ← mobile logo "i"
+ * primary-fixed-dim:        #b9c6eb   ← brand panel subtitle
+ * error-container:          #ffdad6   ← error BG
+ * error:                    #ba1a1a   ← error border
+ * on-error-container:       #93000a   ← error text
+ * border-radius DEFAULT:    0.125rem (2px)
+ */
 
-.ul-card {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 16px;
-  padding: 40px 40px 36px;
+/* ── Root wrapper ── */
+.kl-root {
+  background: #faf8ff;
+  color: #0d1b37;
+  font-family: 'Inter', sans-serif;
+  height: 100vh;
   width: 100%;
-  max-width: 400px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  display: flex;
 }
 
-.ul-card__top {
+/* ── Material Symbols base ── */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════════
+   LEFT PANEL — Branding & Messaging
+   hidden on mobile / flex at ≥900px, w-2/5
+   ═══════════════════════════════════════════════ */
+.kl-brand {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  background: #1a2744;
+  flex-direction: column;
+  height: 100%;
+}
+
+@media (min-width: 768px) {
+  .kl-brand {
+    display: flex;
+    width: 40%;
+  }
+}
+
+/* Gradient overlay — opacity-10 */
+.kl-brand__gradient-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(131, 251, 165, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(131, 251, 165, 0.10) 0%, transparent 50%);
+}
+
+/* Logo — p-12 relative z-10 flex items-center gap-2 */
+.kl-brand__logo {
+  padding: 48px;
+  position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 0px;
+  line-height: 1;
 }
 
-.ul-card__icon { font-size: 26px; line-height: 1; }
+.kl-brand__logo-k,
+.kl-brand__logo-nko {
+  font-size: 1.875rem;   /* text-3xl */
+  font-weight: 900;      /* font-black */
+  letter-spacing: -0.05em; /* tracking-tighter */
+  color: #ffffff;        /* text-on-primary */
+}
 
-.ul-card__title {
-  font-size: 18px;
+.kl-brand__logo-i {
+  font-size: 1.875rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: #83fba5;        /* text-secondary-fixed */
+}
+
+/* Hero content — flex-grow flex flex-col justify-center px-12 pb-24 relative z-10 */
+.kl-brand__hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-left: 48px;
+  padding-right: 48px;
+  padding-bottom: 96px;
+  position: relative;
+  z-index: 10;
+}
+
+/* h1 — text-5xl font-bold tracking-tight text-on-primary leading-tight mb-6 */
+.kl-brand__headline {
+  font-size: 3rem;
   font-weight: 700;
-  color: #f1f5f9;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  line-height: 1.25;
+  margin: 0 0 24px;
 }
 
-.ul-card__heading {
-  font-size: 24px;
+/* p — text-lg text-primary-fixed-dim max-w-md leading-relaxed */
+.kl-brand__sub {
+  font-size: 1.125rem;
+  color: #b9c6eb;
+  max-width: 28rem;
+  line-height: 1.625;
+  margin: 0;
+}
+
+/* Bottom fade — absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-primary/50 to-transparent */
+.kl-brand__bottom-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 128px;
+  background: linear-gradient(to top, rgba(4, 18, 46, 0.5), transparent);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════
+   RIGHT PANEL — Login Form
+   w-full md:w-3/5 h-full bg-surface-container-low
+   flex flex-col justify-center items-center
+   px-6 md:px-24 overflow-y-auto
+   ═══════════════════════════════════════════════ */
+.kl-panel {
+  width: 100%;
+  height: 100%;
+  background: #f2f3ff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+@media (min-width: 768px) {
+  .kl-panel {
+    width: 60%;
+    padding: 0 96px;
+  }
+}
+
+/* Mobile logo — md:hidden flex items-center gap-2 mb-12 */
+.kl-mobile-logo {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 48px;
+  line-height: 1;
+}
+
+@media (min-width: 768px) {
+  .kl-mobile-logo { display: none; }
+}
+
+.kl-mobile-logo__k,
+.kl-mobile-logo__nko {
+  font-size: 1.875rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: #04122e;     /* text-primary */
+}
+
+.kl-mobile-logo__i {
+  font-size: 1.875rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: #006d36;     /* text-secondary */
+}
+
+/* Login card — w-full max-w-md */
+.kl-card {
+  width: 100%;
+  max-width: 28rem;
+}
+
+/* Header — mb-10 text-center md:text-left */
+.kl-card__header {
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .kl-card__header { text-align: left; }
+}
+
+/* h2 — text-[28px] font-bold tracking-tight text-primary mb-2 */
+.kl-card__heading {
+  font-size: 28px;
   font-weight: 700;
-  color: #f1f5f9;
-  margin-bottom: 6px;
+  letter-spacing: -0.025em;
+  color: #04122e;
+  margin: 0 0 8px;
 }
 
-.ul-card__sub {
-  font-size: 13.5px;
-  color: #64748b;
-  margin-bottom: 28px;
+/* p — text-on-surface-variant text-base */
+.kl-card__sub {
+  font-size: 1rem;
+  color: #45464d;
+  margin: 0;
 }
 
-.ul-card__error {
-  background: #450a0a;
-  border: 1px solid #7f1d1d;
-  color: #fca5a5;
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 13.5px;
+/* ── Error banner ── */
+.kl-error {
   display: flex;
   align-items: center;
   gap: 8px;
+  background: #ffdad6;
+  border: 1px solid #ba1a1a;
+  color: #93000a;
+  border-radius: 2px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.5;
   margin-bottom: 20px;
 }
 
-.ul-form {
+.kl-error__icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* ── Form — space-y-6 ── */
+.kl-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
 }
 
-.ul-form__field { display: flex; flex-direction: column; gap: 6px; }
+/* ── Field ── */
+.kl-field {
+  display: flex;
+  flex-direction: column;
+}
 
-.ul-form__label {
-  font-size: 13.5px;
+/* label — text-sm font-medium uppercase tracking-widest text-on-surface-variant mb-2 */
+.kl-field__label {
+  display: block;
+  font-size: 0.875rem;
   font-weight: 500;
-  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #45464d;
+  margin-bottom: 8px;
 }
 
-.ul-form__input-wrap { position: relative; }
-
-.ul-form__input {
-  width: 100%;
-  box-sizing: border-box;
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  padding: 11px 14px;
-  font-size: 14px;
-  color: #e2e8f0;
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  font-family: inherit;
+/* input wrapper — relative */
+.kl-field__wrap {
+  position: relative;
 }
 
-.ul-form__input::placeholder { color: #475569; }
-
-.ul-form__input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
-.ul-form__input-wrap .ul-form__input { padding-right: 42px; }
-
-.ul-form__eye {
+/* icon wrapper — absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none */
+.kl-field__icon-wrap {
   position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 4px;
-  line-height: 1;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  padding-left: 16px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
 }
 
-.ul-form__eye:hover { opacity: 1; }
-
-.ul-form__submit {
-  margin-top: 4px;
-  background: #2563eb;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-  font-family: inherit;
+/* icon — text-outline */
+.kl-field__icon {
+  color: #75777e;
+  font-size: 20px;
 }
 
-.ul-form__submit:hover { background: #1d4ed8; }
-
-.ul-card__sa-link {
+/*
+ * input:
+ * block w-full pl-12 pr-4 py-3.5
+ * bg-surface-container-highest (#d9e2ff)
+ * border-transparent rounded-DEFAULT (2px)
+ * text-on-surface (#0d1b37)
+ * focus:bg-surface-container-lowest (#fff)
+ * focus:border-b-2 focus:border-b-primary (#04122e)
+ * focus:ring-0 focus:outline-none
+ * transition-colors
+ */
+.kl-field__input {
   display: block;
   width: 100%;
-  text-align: center;
+  box-sizing: border-box;
+  padding: 14px 16px 14px 48px;
+  background: #d9e2ff;
+  border: 2px solid transparent;
+  border-radius: 2px;
+  color: #0d1b37;
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  outline: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.kl-field__input::placeholder {
+  color: #75777e;
+}
+
+.kl-field__input:focus {
+  background: #ffffff;
+  border-color: transparent;
+  border-bottom: 2px solid #04122e;
+}
+
+/* password input — pr-12 for eye button */
+.kl-field__input--pw {
+  padding-right: 48px;
+}
+
+/* eye toggle wrapper — absolute inset-y-0 right-0 pr-4 flex items-center */
+.kl-field__eye-wrap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  padding-right: 16px;
+  display: flex;
+  align-items: center;
+}
+
+/* eye button — text-outline hover:text-primary transition-colors focus:outline-none */
+.kl-field__eye {
   background: none;
   border: none;
-  font-size: 13px;
-  color: #475569;
   cursor: pointer;
-  margin-top: 24px;
-  padding: 8px;
-  border-radius: 6px;
-  transition: color 0.2s, background 0.2s;
-  font-family: inherit;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  color: #75777e;
+  transition: color 0.2s;
+  outline: none;
 }
 
-.ul-card__sa-link:hover {
-  color: #94a3b8;
-  background: #0f172a;
+.kl-field__eye:hover {
+  color: #04122e;
 }
 
-@media (max-width: 480px) {
-  .ul-card { padding: 28px 20px 24px; }
+.kl-field__eye .material-symbols-outlined {
+  font-size: 20px;
+}
+
+/* Forgot password — mt-2 text-right */
+.kl-field__forgot {
+  margin-top: 8px;
+  text-align: right;
+}
+
+/*
+ * forgot link:
+ * text-sm font-medium text-on-surface-variant
+ * hover:text-primary transition-colors
+ * underline decoration-2 decoration-outline-variant
+ * hover:decoration-primary underline-offset-4
+ */
+.kl-field__forgot-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #45464d;
+  text-decoration: underline;
+  text-decoration-color: #c5c6ce;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  transition: color 0.2s, text-decoration-color 0.2s;
+}
+
+.kl-field__forgot-link:hover {
+  color: #04122e;
+  text-decoration-color: #04122e;
+}
+
+/* ── Remember me — flex items-center ── */
+.kl-remember {
+  display: flex;
+  align-items: center;
+}
+
+/* checkbox — h-4 w-4 rounded-DEFAULT bg-surface-container-highest border-transparent */
+.kl-remember__checkbox {
+  height: 16px;
+  width: 16px;
+  border-radius: 2px;
+  background: #d9e2ff;
+  border: 1px solid transparent;
+  accent-color: #04122e;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* label — ml-2 text-sm font-medium text-on-surface-variant */
+.kl-remember__label {
+  margin-left: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #45464d;
+  cursor: pointer;
+}
+
+/* ── Submit wrapper — pt-4 ── */
+.kl-submit-wrap {
+  padding-top: 16px;
+}
+
+/*
+ * button:
+ * w-full flex justify-center py-4 px-4
+ * border border-transparent rounded-DEFAULT (2px)
+ * shadow-sm text-base font-bold
+ * text-on-secondary-fixed (#00210c)
+ * bg-secondary-fixed (#83fba5)
+ * hover:bg-secondary-fixed-dim (#66dd8b)
+ * focus:ring-2 focus:ring-offset-2 focus:ring-secondary-fixed
+ * transition-colors
+ */
+.kl-submit {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #00210c;
+  background: #83fba5;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s;
+  outline: none;
+}
+
+.kl-submit:hover:not(:disabled) {
+  background: #66dd8b;
+}
+
+.kl-submit:focus-visible {
+  box-shadow: 0 0 0 2px #f2f3ff, 0 0 0 4px #83fba5;
+}
+
+.kl-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ── Super Admin section — mt-12 text-center md:text-left ── */
+.kl-sa-wrap {
+  margin-top: 48px;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .kl-sa-wrap { text-align: left; }
+}
+
+/*
+ * link:
+ * text-sm font-medium text-primary
+ * hover:text-primary-container transition-colors
+ * inline-flex items-center gap-1
+ */
+.kl-sa-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #04122e;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s;
+  padding: 0;
+}
+
+.kl-sa-link:hover {
+  color: #1a2744;
+}
+
+/* arrow icon — text-sm group-hover:translate-x-1 transition-transform */
+.kl-sa-link__arrow {
+  font-size: 0.875rem;
+  transition: transform 0.2s;
+}
+
+.kl-sa-link:hover .kl-sa-link__arrow {
+  transform: translateX(4px);
 }

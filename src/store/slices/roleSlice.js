@@ -1,21 +1,39 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as roleService from "../../services/roleService";
 
-export const fetchPermissions = createAsyncThunk("roles/fetchPermissions", async (_, thunkAPI) => {
-  try {
-    return await roleService.listPermissions();
-  } catch (error) {
-    return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+export const fetchPermissions = createAsyncThunk(
+  "roles/fetchPermissions",
+  async (_, thunkAPI) => {
+    try {
+      return await roleService.listPermissions();
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { permissionsLoading, permissions } = getState().roles;
+      return !permissionsLoading && permissions.length === 0;
+    },
   }
-});
+);
 
-export const fetchRoles = createAsyncThunk("roles/fetchRoles", async (_, thunkAPI) => {
-  try {
-    return await roleService.listRoles();
-  } catch (error) {
-    return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+export const fetchRoles = createAsyncThunk(
+  "roles/fetchRoles",
+  async (_, thunkAPI) => {
+    try {
+      return await roleService.listRoles();
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { loading, roles } = getState().roles;
+      return !loading && roles.length === 0;
+    },
   }
-});
+);
 
 export const createRole = createAsyncThunk("roles/createRole", async (name, thunkAPI) => {
   try {
@@ -64,6 +82,7 @@ const roleSlice = createSlice({
     roles: [],
     permissions: [],   // all system permission definitions
     loading: false,
+    permissionsLoading: false,
     error: null,
     errorCode: null,
   },
@@ -78,9 +97,12 @@ const roleSlice = createSlice({
     const rejected = (state, action) => { state.loading = false; state.errorCode = action.payload; };
 
     builder
+      .addCase(fetchPermissions.pending, (state) => { state.permissionsLoading = true; })
       .addCase(fetchPermissions.fulfilled, (state, action) => {
+        state.permissionsLoading = false;
         state.permissions = action.payload;
       })
+      .addCase(fetchPermissions.rejected, (state) => { state.permissionsLoading = false; })
 
       .addCase(fetchRoles.pending, pending)
       .addCase(fetchRoles.fulfilled, (state, action) => {

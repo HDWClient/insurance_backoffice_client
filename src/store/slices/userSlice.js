@@ -1,13 +1,22 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as userService from "../../services/userService";
 
-export const fetchUsers = createAsyncThunk("users/fetchUsers", async ({ page, size } = {}, thunkAPI) => {
-  try {
-    return await userService.listUsers({ page, size });
-  } catch (error) {
-    return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+export const fetchUsers = createAsyncThunk(
+  "users/fetchUsers",
+  async ({ page, size } = {}, thunkAPI) => {
+    try {
+      return await userService.listUsers({ page, size });
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { loading, items } = getState().users;
+      return !loading && items.length === 0;
+    },
   }
-});
+);
 
 export const fetchUser = createAsyncThunk("users/fetchUser", async (id, thunkAPI) => {
   try {

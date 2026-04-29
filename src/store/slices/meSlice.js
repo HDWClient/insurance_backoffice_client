@@ -2,13 +2,20 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as meService from "../../services/meService";
 
 // Call once after login; re-fetch after org switch or role changes.
-export const fetchMyPermissions = createAsyncThunk("me/fetchMyPermissions", async (_, thunkAPI) => {
-  try {
-    return await meService.getMyPermissions();
-  } catch (error) {
-    return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+// condition: if a fetch is already in-flight, skip the duplicate (handles StrictMode double-invoke).
+export const fetchMyPermissions = createAsyncThunk(
+  "me/fetchMyPermissions",
+  async (_, thunkAPI) => {
+    try {
+      return await meService.getMyPermissions();
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+    }
+  },
+  {
+    condition: (_, { getState }) => !getState().me.loading,
   }
-});
+);
 
 const meSlice = createSlice({
   name: "me",

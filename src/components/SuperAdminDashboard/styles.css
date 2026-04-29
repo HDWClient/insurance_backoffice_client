@@ -182,6 +182,61 @@
 .badge--global               { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
 .badge--org                  { background: rgba(52,211,153,0.1); color: #34d399; border: 1px solid rgba(52,211,153,0.25); }
 
+/* ── Inline status toggle ────────────────────────────────────── */
+.status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+.status-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.status-toggle__track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: #450a0a;
+  transition: background 0.22s;
+  flex-shrink: 0;
+}
+.status-toggle--on .status-toggle__track {
+  background: #1c3a2e;
+}
+.status-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fca5a5;
+  transition: transform 0.22s, background 0.22s;
+}
+.status-toggle--on .status-toggle__thumb {
+  transform: translateX(16px);
+  background: #34d399;
+}
+.status-toggle__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #fca5a5;
+  transition: color 0.22s;
+  min-width: 48px;
+}
+.status-toggle--on .status-toggle__label {
+  color: #34d399;
+}
+
 .perm-chip {
   display: inline-block;
   font-size: 10px;
@@ -761,6 +816,79 @@
   55%  { transform: translateX(100%); }
   100% { transform: translateX(100%); }
 }
+
+/* ── Confirmation modal ──────────────────────────────────── */
+.uc-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+  animation: uc-fade-in 0.15s ease;
+}
+
+@keyframes uc-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.uc-modal {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  padding: 32px 28px 24px;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  animation: uc-slide-up 0.18s ease;
+}
+
+@keyframes uc-slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.uc-modal__icon-wrap {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin: 0 auto 16px;
+}
+
+.uc-modal__icon-wrap--danger { background: rgba(239, 68, 68, 0.12); }
+.uc-modal__icon-wrap--warn   { background: rgba(251, 191, 36, 0.12); }
+
+.uc-modal__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0 0 10px;
+}
+
+.uc-modal__body {
+  font-size: 13.5px;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.uc-modal__body strong { color: #e2e8f0; }
+
+.uc-modal__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.uc-modal__actions .btn { min-width: 110px; }
 
 /* ═══════════════════════════════════════════════════════════
    Responsive

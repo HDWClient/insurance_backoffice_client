@@ -19,6 +19,7 @@ import {
   fetchUserRoles,
   inviteUser as apiInviteUser,
   deleteUser as apiDeleteUser,
+  reviveUser as apiReviveUser,
   assignRole as apiAssignRole,
   revokeRole as apiRevokeRole,
 } from "../../store/slices/userSlice";
@@ -468,7 +469,8 @@ function UserModuleTab({ actions, can }) {
   const [selectedRole, setSelectedRole] = useState({});
   const [assigning, setAssigning]       = useState(false);
   const [assignErr, setAssignErr]       = useState("");
-  const [deleteUserErr, setDeleteUserErr] = useState("");
+  const [confirmAction, setConfirmAction] = useState(null); // { user, type: "toggle"|"delete" }
+  const [confirming, setConfirming]      = useState(false);
 
   useEffect(() => {
     dispatch(fetchRoles());
@@ -534,6 +536,19 @@ function UserModuleTab({ actions, can }) {
   const handleRevoke = async (userId, roleId) => {
     const res = await dispatch(apiRevokeRole({ userId, roleId }));
     if (apiRevokeRole.fulfilled.match(res)) dispatch(fetchUserRoles(userId));
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmAction) return;
+    const { user: u, type } = confirmAction;
+    setConfirming(true);
+    if (u.status === "active" || type === "delete") {
+      await dispatch(apiDeleteUser(u.id));
+    } else {
+      await dispatch(apiReviveUser(u.id));
+    }
+    setConfirming(false);
+    setConfirmAction(null);
   };
 
   const initial = (u) => (u.fullName || u.email || "?")[0].toUpperCase();
@@ -612,15 +627,6 @@ function UserModuleTab({ actions, can }) {
       )}
 
       {/* ── Users List ──────────────────────────────────────── */}
-      {deleteUserErr && (
-        <div className="error-banner" style={{ marginBottom: 12, justifyContent: "space-between" }}>
-          <span>⚠ {deleteUserErr}</span>
-          <button onClick={() => setDeleteUserErr("")}
-            style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
-            ×
-          </button>
-        </div>
-      )}
       <div className="card">
         <div className="card__header">
           <h2 className="card__title">
@@ -668,7 +674,20 @@ function UserModuleTab({ actions, can }) {
                       </td>
 
                       <td>
-                        <span className={`badge badge--${u.status}`}>{u.status ?? "—"}</span>
+                        {canDelete && !u.isSuperAdmin && (u.status === "active" || u.status === "inactive") ? (
+                          <button
+                            className={`status-toggle${u.status === "active" ? " status-toggle--on" : " status-toggle--off"}`}
+                            onClick={() => setConfirmAction({ user: u, type: "toggle" })}
+                            title={u.status === "active" ? "Click to deactivate" : "Click to activate"}
+                          >
+                            <span className="status-toggle__track">
+                              <span className="status-toggle__thumb" />
+                            </span>
+                            <span className="status-toggle__label">{u.status}</span>
+                          </button>
+                        ) : (
+                          <span className={`badge badge--${u.status}`}>{u.status ?? "—"}</span>
+                        )}
                       </td>
 
                       <td className="tbl__muted">{u.orgSlug || "—"}</td>
@@ -695,7 +714,7 @@ function UserModuleTab({ actions, can }) {
                         )}
                       </td>
 
-                      {/* Actions — always shown */}
+                      {/* Actions */}
                       <td>
                         <div className="tbl__actions">
                           <button
@@ -707,17 +726,7 @@ function UserModuleTab({ actions, can }) {
                           {canDelete && !u.isSuperAdmin && (
                             <button
                               className="btn btn--danger btn--sm"
-                              onClick={async () => {
-                                setDeleteUserErr("");
-                                const res = await dispatch(apiDeleteUser(u.id));
-                                if (apiDeleteUser.rejected.match(res)) {
-                                  setDeleteUserErr(
-                                    res.payload === "SELF_DELETE"
-                                      ? "You cannot delete your own account."
-                                      : `Delete failed: ${res.payload ?? "Unknown error"}`
-                                  );
-                                }
-                              }}
+                              onClick={() => setConfirmAction({ user: u, type: "delete" })}
                             >
                               Delete
                             </button>
@@ -835,6 +844,57 @@ function UserModuleTab({ actions, can }) {
           </table>
         )}
       </div>
+
+      {/* ── Confirmation Modal ──────────────────────────────── */}
+      {confirmAction && (
+        <div className="uc-overlay" onClick={() => !confirming && setConfirmAction(null)}>
+          <div className="uc-modal" onClick={(e) => e.stopPropagation()}>
+            <div className={`uc-modal__icon-wrap ${confirmAction.type === "delete" ? "uc-modal__icon-wrap--danger" : "uc-modal__icon-wrap--warn"}`}>
+              {confirmAction.type === "delete" ? "🗑" : confirmAction.user.status === "active" ? "⏸" : "▶"}
+            </div>
+
+            <h3 className="uc-modal__title">
+              {confirmAction.type === "delete"
+                ? "Delete User?"
+                : confirmAction.user.status === "active"
+                  ? "Deactivate User?"
+                  : "Activate User?"}
+            </h3>
+
+            <p className="uc-modal__body">
+              {confirmAction.type === "delete"
+                ? <>Are you sure you want to delete <strong>{confirmAction.user.fullName || confirmAction.user.email}</strong>? This cannot be undone.</>
+                : confirmAction.user.status === "active"
+                  ? <><strong>{confirmAction.user.fullName || confirmAction.user.email}</strong> will be deactivated and lose access.</>
+                  : <><strong>{confirmAction.user.fullName || confirmAction.user.email}</strong> will be reactivated and regain access.</>}
+            </p>
+
+            <div className="uc-modal__actions">
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={() => setConfirmAction(null)}
+                disabled={confirming}
+              >
+                No, Cancel
+              </button>
+              <button
+                className={`btn btn--sm ${confirmAction.type === "delete" ? "btn--danger" : "btn--primary"}`}
+                onClick={handleConfirm}
+                disabled={confirming}
+              >
+                {confirming
+                  ? "Please wait…"
+                  : confirmAction.type === "delete"
+                    ? "Yes, Delete"
+                    : confirmAction.user.status === "active"
+                      ? "Yes, Deactivate"
+                      : "Yes, Activate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

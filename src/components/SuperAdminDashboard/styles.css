@@ -739,27 +739,27 @@
 .btn--create-shimmer {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .btn--create-shimmer::after {
   content: "";
   position: absolute;
-  top: 0;
-  left: -75%;
-  width: 50%;
-  height: 100%;
+  inset: 0;
   background: linear-gradient(
-    120deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.22) 50%,
-    transparent 100%
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 80%
   );
-  animation: shimmer-btn 2s ease-in-out infinite;
+  transform: translateX(-100%);
+  animation: shimmer-btn 2.4s ease-in-out infinite;
 }
 
 @keyframes shimmer-btn {
-  0%   { left: -75%; }
-  100% { left: 150%; }
+  0%   { transform: translateX(-100%); }
+  55%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
 }
 
 /* ═══════════════════════════════════════════════════════════

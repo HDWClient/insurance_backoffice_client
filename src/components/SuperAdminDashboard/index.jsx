@@ -991,15 +991,15 @@ function RoleModuleTab({ actions, can }) {
           </div>
           <div className="card__body">
             <form className="form" onSubmit={handleCreate} noValidate>
-              <div className="form__inline">
-                <div className="form__field">
-                  <label className="form__label">Role Name</label>
-                  <input className={`form__input${newRoleErr ? " form__input--err" : ""}`}
-                    value={newRoleName} placeholder="e.g. Compliance Officer"
-                    onChange={(e) => { setNewRoleName(e.target.value); setNewRoleErr(""); }} />
-                  {newRoleErr && <span className="form__err">{newRoleErr}</span>}
-                </div>
-                <button className="btn btn--primary btn--sm" type="submit" disabled={creating}>
+              <div className="form__field">
+                <label className="form__label">Role Name</label>
+                <input className={`form__input${newRoleErr ? " form__input--err" : ""}`}
+                  value={newRoleName} placeholder="e.g. Compliance Officer"
+                  onChange={(e) => { setNewRoleName(e.target.value); setNewRoleErr(""); }} />
+                {newRoleErr && <span className="form__err">{newRoleErr}</span>}
+              </div>
+              <div className="create-org-form__footer">
+                <button className="btn btn--primary btn--sm btn--create-shimmer" type="submit" disabled={creating}>
                   {creating ? "Creating…" : "+ Create"}
                 </button>
               </div>
@@ -1353,11 +1353,11 @@ export default function SuperAdminDashboard() {
     dispatch(fetchMyPermissions());
   }, [dispatch]);
 
-  // Re-fetch /me/permissions and reset tab selection whenever the org changes
+  // Re-fetch /me/permissions and reset tab whenever the org changes
   useEffect(() => {
     if (!activeOrg?.id) return;
     dispatch(fetchMyPermissions());
-    setActiveTab(null); // will auto-select first tab once new permissions arrive
+    setActiveTab(null);
   }, [activeOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build module → Set<action> from the normalised permissions

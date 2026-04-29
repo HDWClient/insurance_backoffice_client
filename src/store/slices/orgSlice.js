@@ -1,13 +1,22 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as orgService from "../../services/orgService";
 
-export const fetchOrgs = createAsyncThunk("orgs/fetchOrgs", async (_, thunkAPI) => {
-  try {
-    return await orgService.listOrgs();
-  } catch (error) {
-    return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+export const fetchOrgs = createAsyncThunk(
+  "orgs/fetchOrgs",
+  async (_, thunkAPI) => {
+    try {
+      return await orgService.listOrgs();
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error?.response?.data?.errorCode ?? "FETCH_FAILED");
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { loading, orgs } = getState().orgs;
+      return !loading && orgs.length === 0;
+    },
   }
-});
+);
 
 export const fetchOrg = createAsyncThunk("orgs/fetchOrg", async (id, thunkAPI) => {
   try {

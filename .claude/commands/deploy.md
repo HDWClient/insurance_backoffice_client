@@ -1,6 +1,6 @@
 ---
 description: Build the app and deploy to S3 + invalidate CloudFront cache
-allowed-tools: Bash(npm run build:*), Bash(aws s3 sync:*), Bash(aws cloudfront create-invalidation:*), Bash(aws cloudfront get-invalidation:*), Bash(aws sts get-caller-identity:*), Read
+allowed-tools: Bash(npm run build:*), Bash(aws s3 sync:*), Bash(aws s3 cp:*), Bash(aws cloudfront create-invalidation:*), Bash(aws cloudfront get-invalidation:*), Bash(aws sts get-caller-identity:*), Read
 argument-hint: ""
 ---
 
@@ -39,16 +39,39 @@ npm run build
 
 If the build fails, show the error and stop. Do not proceed to upload.
 
-## Step 4 — Sync dist/ to S3
+## Step 4 — Upload dist/ to S3 with correct Content-Type headers
 
-Run (with credentials exported as env vars):
+Upload each file type explicitly so browsers render them correctly (not download them):
+
+```bash
+# index.html — no-cache so users always get the latest
+aws s3 cp dist/index.html s3://<S3_BUCKET>/<S3_FOLDER>/index.html \
+  --content-type "text/html" \
+  --cache-control "no-cache, no-store, must-revalidate" \
+  --region <AWS_REGION>
+
+# JS bundles — immutable long-cache (hash in filename)
+aws s3 sync dist/assets/ s3://<S3_BUCKET>/<S3_FOLDER>/assets/ \
+  --exclude "*.css" --exclude "*.png" --exclude "*.svg" \
+  --content-type "application/javascript" \
+  --cache-control "max-age=31536000, immutable" \
+  --region <AWS_REGION>
+
+# CSS bundles — immutable long-cache
+aws s3 sync dist/assets/ s3://<S3_BUCKET>/<S3_FOLDER>/assets/ \
+  --exclude "*.js" --exclude "*.png" --exclude "*.svg" \
+  --content-type "text/css" \
+  --cache-control "max-age=31536000, immutable" \
+  --region <AWS_REGION>
+
+# Images and SVGs
+aws s3 sync dist/ s3://<S3_BUCKET>/<S3_FOLDER>/ \
+  --exclude "*.html" --exclude "assets/*.js" --exclude "assets/*.css" \
+  --cache-control "max-age=31536000, immutable" \
+  --region <AWS_REGION>
 ```
-aws s3 sync dist/ s3://<S3_BUCKET>/<S3_FOLDER>/ --region <AWS_REGION> --delete
-```
 
-Replace `<S3_BUCKET>`, `<S3_FOLDER>`, and `<AWS_REGION>` with the values from `.env.deploy`.
-
-Show each uploaded file as confirmation.
+Replace `<S3_BUCKET>`, `<S3_FOLDER>`, and `<AWS_REGION>` with values from `.env.deploy`.
 
 ## Step 5 — Invalidate CloudFront cache
 

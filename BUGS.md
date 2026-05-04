@@ -1,3 +1,17 @@
+## 2026-05-04 — code-review (staged): playwright tests + vite base + deploy command
+
+### [Medium] Generated test artifacts committed to source control
+- **File**: `playwright-report/` and `test-results/` directories
+- **Issue**: These are generated output files (screenshots, webm videos, trace zips, HTML reports). Committing them bloats the repo with binary data and they'll be regenerated on every test run. They belong in `.gitignore`.
+- **Suggested fix**: Add `playwright-report/` and `test-results/` to `.gitignore`, then unstage them.
+- **Status**: Open
+
+### [Low] playwright.config.js: headless: false committed
+- **File**: `playwright.config.js:13`
+- **Issue**: `headless: false` opens a real browser window during tests. Fine locally, but breaks CI environments. Should be `headless: true` or conditionally `!process.env.CI`.
+- **Suggested fix**: Change to `headless: !process.env.CI` so local runs show the browser but CI runs headlessly.
+- **Status**: Open
+
 ## 2026-05-04 — code-review (staged): bulk-upload + cms-users + verify pipeline
 
 ### [Medium] ConsumerUserModuleTab: search debounce timeout not cleared on unmount

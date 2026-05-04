@@ -13,12 +13,16 @@ Stop and report if any phase fails. Never skip a phase.
 
 ## PHASE 1 — Code Review (staged files only)
 
-### 1.1 — Identify what's staged
-Run:
+### 1.1 — Stage all changes and identify what's staged
+First, stage everything:
+```
+git add .
+```
+Then run:
 - `git status --short`
 - `git diff --cached --name-only`
 
-If nothing is staged, tell the user "Nothing staged — run `git add <files>` first." and **stop**.
+If still nothing is staged after `git add .`, tell the user "Nothing to commit — working tree is clean." and **stop**.
 
 ### 1.2 — Review the staged diff
 Run `git diff --cached` and read the full output. For each changed file look for:
@@ -92,7 +96,7 @@ mkdir -p .claude && touch .claude/.precommit-check-ok
 
 ### 3.1 — Stage any fixes from Phases 1 & 2
 ```
-git add -u
+git add .
 ```
 
 ### 3.2 — Read the final staged diff and recent log

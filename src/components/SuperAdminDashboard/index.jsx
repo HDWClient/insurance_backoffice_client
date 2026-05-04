@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import * as userService from "../../services/userService";
 import * as roleService from "../../services/roleService";
+import * as bulkService from "../../services/bulkService";
+import * as consumerUserService from "../../services/consumerUserService";
 import { getRoleUsers, bulkRevokeRoleUsers } from "../../services/roleService";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -73,6 +75,7 @@ function OrgModuleTab({ actions, can }) {
   const [expandMode, setExpandMode]   = useState("view"); // "view" | "edit"
   const [editName, setEditName]       = useState("");
   const [editSaving, setEditSaving]   = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(null);
   const [actioning, setActioning]     = useState(null);
 
   useEffect(() => { dispatch(fetchOrgs()); }, [dispatch]);
@@ -80,28 +83,39 @@ function OrgModuleTab({ actions, can }) {
 
   const openPanel = (org, mode) => {
     if (expandedId === org.id && expandMode === mode) {
-      // same button clicked again → close
       setExpandedId(null);
+      setPendingStatus(null);
       dispatch(clearSelectedOrg());
     } else {
       setExpandedId(org.id);
       setExpandMode(mode);
       if (mode === "edit") setEditName(org.name);
+      setPendingStatus(null);
       dispatch(fetchOrg(org.id));
     }
   };
 
   const closePanel = () => {
     setExpandedId(null);
+    setPendingStatus(null);
     dispatch(clearSelectedOrg());
   };
 
   const handleSave = async () => {
-    if (!editName.trim()) return;
+    if (!selectedOrg) return;
+    const nameChanged   = editName.trim() && editName.trim() !== selectedOrg.name;
+    const currentStatus = selectedOrg.status === "inactive" ? "suspended" : (selectedOrg.status ?? "active");
+    const statusChanged = pendingStatus !== null && pendingStatus !== currentStatus;
+    if (!nameChanged && !statusChanged) return;
     setEditSaving(true);
-    const res = await dispatch(apiUpdateOrg({ id: expandedId, name: editName.trim() }));
+    if (nameChanged) await dispatch(apiUpdateOrg({ id: expandedId, name: editName.trim() }));
+    if (statusChanged) {
+      if (pendingStatus === "suspended") await dispatch(apiSuspendOrg(expandedId));
+      else await dispatch(apiActivateOrg(expandedId));
+    }
     setEditSaving(false);
-    if (apiUpdateOrg.fulfilled.match(res)) closePanel();
+    setPendingStatus(null);
+    closePanel();
   };
 
   const handleCreate = async (e) => {
@@ -116,16 +130,6 @@ function OrgModuleTab({ actions, can }) {
     const res = await dispatch(apiCreateOrg({ name: name.trim(), slug: slug.trim() }));
     if (apiCreateOrg.fulfilled.match(res)) { setName(""); setSlug(""); setErrors({}); }
     setSaving(false);
-  };
-
-  const handleToggleSuspend = async (org) => {
-    setActioning(org.id);
-    const isSuspended = org.status === "suspended" || org.status === "inactive";
-    const res = isSuspended
-      ? await dispatch(apiActivateOrg(org.id))
-      : await dispatch(apiSuspendOrg(org.id));
-    setActioning(null);
-    if (apiActivateOrg.fulfilled.match(res) || apiSuspendOrg.fulfilled.match(res)) closePanel();
   };
 
   const handleDelete = async (orgId) => {
@@ -391,37 +395,31 @@ function OrgModuleTab({ actions, can }) {
                                       />
                                     </div>
 
-                                    {/* Status toggle — shown for any user with canUpdate */}
+                                    {/* Status select */}
                                     <div className="form__field">
                                       <label className="form__label">Status</label>
-                                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                        <span className={`badge badge--${selectedOrg.status ?? "active"}`}>
-                                          {selectedOrg.status ?? "active"}
-                                        </span>
-                                        <button
-                                          className="btn btn--ghost btn--sm"
-                                          style={
-                                            selectedOrg.status === "suspended" || selectedOrg.status === "inactive"
-                                              ? { borderColor: "#166534", color: "#34d399" }
-                                              : { borderColor: "#4c1d95", color: "#a78bfa" }
-                                          }
-                                          disabled={isActioning}
-                                          onClick={() => handleToggleSuspend(selectedOrg)}
-                                        >
-                                          {isActioning
-                                            ? "…"
-                                            : selectedOrg.status === "suspended" || selectedOrg.status === "inactive"
-                                              ? "Activate"
-                                              : "Suspend"}
-                                        </button>
-                                      </div>
+                                      <select
+                                        className="form__input"
+                                        value={pendingStatus ?? (selectedOrg.status === "inactive" ? "suspended" : (selectedOrg.status ?? "active"))}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          const cur = selectedOrg.status === "inactive" ? "suspended" : (selectedOrg.status ?? "active");
+                                          setPendingStatus(val === cur ? null : val);
+                                        }}
+                                      >
+                                        <option value="active">Active</option>
+                                        <option value="suspended">Suspended</option>
+                                      </select>
                                     </div>
 
-                                    {/* Save name */}
+                                    {/* Save */}
                                     <div>
                                       <button
                                         className="btn btn--primary btn--sm"
-                                        disabled={editSaving || !editName.trim() || editName.trim() === selectedOrg.name}
+                                        disabled={
+                                          editSaving ||
+                                          (!pendingStatus && (!editName.trim() || editName.trim() === selectedOrg.name))
+                                        }
                                         onClick={handleSave}
                                       >
                                         {editSaving ? "Saving…" : "Save Changes"}
@@ -456,8 +454,8 @@ function UserModuleTab({ actions, can }) {
   const { items: users = [], loading, totalItems, userRoles = {} } = useSelector((s) => s.users);
   const { roles = [] } = useSelector((s) => s.roles);
 
-  const canCreate = (actions.has("CREATE") || actions.has("MANAGE")) && can("USER_CREATE");
-  const canDelete = (actions.has("DELETE") || actions.has("MANAGE")) && can("USER_DELETE");
+  const canCreate = (actions.has("CREATE") || actions.has("MANAGE")) && can("CMS_USER_CREATE");
+  const canDelete = (actions.has("DELETE") || actions.has("MANAGE")) && can("CMS_USER_DELETE");
 
   const [fullName, setFullName]         = useState("");
   const [email, setEmail]               = useState("");
@@ -490,7 +488,7 @@ function UserModuleTab({ actions, can }) {
     setSaving(true);
     setInviteSuccess("");
 
-    // Step 1 — POST /users/invite
+    // Step 1 — POST /cms-users/invite
     const inviteRes = await dispatch(apiInviteUser({ fullName: fullName.trim(), email: email.trim() }));
 
     if (apiInviteUser.rejected.match(inviteRes)) {
@@ -501,7 +499,7 @@ function UserModuleTab({ actions, can }) {
 
     const newUserId = inviteRes.payload?.id;
 
-    // Step 3 — POST /users/{newUserId}/roles if a role was selected
+    // Step 3 — POST /cms-users/{newUserId}/roles if a role was selected
     if (newUserId && inviteRole) {
       await dispatch(apiAssignRole({ userId: newUserId, roleId: inviteRole }));
       dispatch(fetchUserRoles(newUserId));
@@ -984,7 +982,7 @@ function RoleModuleTab({ actions, can }) {
         return;
       }
 
-      // Step 2 — GET /roles/{roleId}/users → list of all users holding this role
+      // Step 2 — GET /roles/{roleId}/cms-users → list of all cms-users holding this role
       const assignedUsers = await getRoleUsers(roleId);
       const userIds = (Array.isArray(assignedUsers) ? assignedUsers : [])
         .map((u) => u.id ?? u.userId)
@@ -1223,6 +1221,766 @@ function RoleModuleTab({ actions, can }) {
 }
 
 /* ─────────────────────────────────────────────────────────── */
+/*  BULK module tab — CSV upload + job management (Operations) */
+/* ─────────────────────────────────────────────────────────── */
+const ROW_STATUSES = ["STAGED","OTP_SENT","VERIFIED","PROMOTED","REJECTED","EXPIRED","INVITE_FAILED","SUPERSEDED"];
+
+function jobStatusClass(status) {
+  return { PENDING: "badge--pending", PROCESSING: "badge--processing", COMPLETED: "badge--completed", FAILED: "badge--failed" }[status] ?? "badge--system";
+}
+
+function rowStatusClass(status) {
+  return {
+    STAGED: "badge--staged", OTP_SENT: "badge--otp-sent", VERIFIED: "badge--verified",
+    PROMOTED: "badge--promoted", REJECTED: "badge--rejected", EXPIRED: "badge--expired",
+    INVITE_FAILED: "badge--invite-failed", SUPERSEDED: "badge--superseded",
+  }[status] ?? "badge--system";
+}
+
+function BulkModuleTab({ actions }) {
+  const canUpload = actions.has("UPLOAD");
+  const canRead   = actions.has("READ") || actions.has("UPLOAD");
+
+  const [jobs, setJobs]               = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [jobsError, setJobsError]     = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading]     = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploadSuccess, setUploadSuccess] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const [detailJob, setDetailJob]           = useState(null);
+  const [detailLoading, setDetailLoading]   = useState(false);
+  const [rows, setRows]                     = useState([]);
+  const [rowsLoading, setRowsLoading]       = useState(false);
+  const [rowFilter, setRowFilter]           = useState("STAGED");
+  const [rowPage, setRowPage]               = useState(0);
+  const [rowTotalPages, setRowTotalPages]   = useState(1);
+  const [parseErrors, setParseErrors]       = useState(null);
+  const [parseErrLoading, setParseErrLoading] = useState(false);
+  const [showParseErrors, setShowParseErrors] = useState(false);
+  const [resending, setResending]           = useState({});
+  const [resendStatus, setResendStatus]     = useState({});
+
+  const loadJobs = useCallback(async () => {
+    if (!canRead) return;
+    setJobsLoading(true);
+    try {
+      const data = await bulkService.listJobs();
+      setJobs(data.items ?? []);
+      setJobsError(null);
+    } catch (err) {
+      const status = err?.response?.status;
+      const code   = err?.response?.data?.errorCode;
+      setJobsError(
+        status === 404 || code === "NOT_FOUND"
+          ? "Backend bulk-upload feature not yet deployed"
+          : code ?? "FETCH_FAILED"
+      );
+    } finally {
+      setJobsLoading(false);
+    }
+  }, [canRead]);
+
+  // Jobs are fetched only after an upload or manual Refresh — not on mount.
+  // This avoids hitting /bulk before the backend has the endpoint.
+
+  useEffect(() => {
+    if (detailJob) return;
+    const hasActive = jobs.some(j => j.status === "PENDING" || j.status === "PROCESSING");
+    if (!hasActive) return;
+    const id = setInterval(loadJobs, 2000);
+    return () => clearInterval(id);
+  }, [jobs, detailJob, loadJobs]);
+
+  const loadRows = useCallback(async (jobId, status, pg) => {
+    setRowsLoading(true);
+    try {
+      const data = await bulkService.getJobRows(jobId, { status, page: pg, size: 20 });
+      setRows(data.items ?? []);
+      setRowTotalPages(data.totalPages ?? 1);
+    } catch {
+      setRows([]);
+    } finally {
+      setRowsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!detailJob) return;
+    loadRows(detailJob.id, rowFilter, rowPage);
+  }, [detailJob?.id, rowFilter, rowPage, loadRows]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!detailJob) return;
+    if (detailJob.status !== "PENDING" && detailJob.status !== "PROCESSING") return;
+    const poll = async () => {
+      try {
+        const full = await bulkService.getJob(detailJob.id);
+        setDetailJob(full);
+        if (full.status === "COMPLETED" || full.status === "FAILED") {
+          setRowPage(0);
+          loadRows(full.id, rowFilter, 0);
+        }
+      } catch { /* poll failure silently ignored */ }
+    };
+    const id = setInterval(poll, 2000);
+    return () => clearInterval(id);
+  }, [detailJob?.id, detailJob?.status, rowFilter, loadRows]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFileChange = (e) => {
+    setSelectedFile(e.target.files?.[0] ?? null);
+    setUploadError(null);
+    setUploadSuccess(null);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    setUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null);
+    try {
+      const job = await bulkService.uploadBulkFile(selectedFile);
+      setUploadSuccess(`Job #${job.jobNumber} submitted for "${job.fileName}".`);
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await loadJobs();
+    } catch (err) {
+      const status = err?.response?.status;
+      const code   = err?.response?.data?.errorCode;
+      const msg    = err?.response?.data?.message;
+      if (status === 404 || code === "NOT_FOUND") {
+        setUploadError("Bulk upload endpoint not available on this backend. Please ensure the backend has deployed the bulk-upload feature (/bulk/upload).");
+      } else if (code === "BULK_INVALID_FILE") {
+        setUploadError(msg ?? "Invalid file — check format, size and header columns.");
+      } else {
+        setUploadError(msg ?? code ?? "Upload failed.");
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openDetail = async (job) => {
+    setDetailJob(job);
+    setDetailLoading(true);
+    setRows([]); setRowPage(0); setRowFilter("STAGED");
+    setParseErrors(null); setShowParseErrors(false);
+    setResending({}); setResendStatus({});
+    try {
+      const full = await bulkService.getJob(job.id);
+      setDetailJob(full);
+    } catch { /* keep partial data on error */ } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const toggleParseErrors = async () => {
+    if (!detailJob) return;
+    if (parseErrors !== null) { setShowParseErrors(p => !p); return; }
+    setParseErrLoading(true);
+    try {
+      const raw = await bulkService.getJobErrors(detailJob.id);
+      const parsed = raw ? (typeof raw === "string" ? JSON.parse(raw) : raw) : [];
+      setParseErrors(parsed);
+      setShowParseErrors(true);
+    } catch { setParseErrors([]); } finally { setParseErrLoading(false); }
+  };
+
+  const handleResend = async (rowId) => {
+    if (!detailJob) return;
+    setResending(p => ({ ...p, [rowId]: true }));
+    setResendStatus(p => ({ ...p, [rowId]: null }));
+    try {
+      await bulkService.resendInvite(detailJob.id, rowId);
+      setResendStatus(p => ({ ...p, [rowId]: "ok" }));
+      loadRows(detailJob.id, rowFilter, rowPage);
+    } catch (err) {
+      setResendStatus(p => ({ ...p, [rowId]: err?.response?.data?.errorCode ?? "FAILED" }));
+    } finally {
+      setResending(p => ({ ...p, [rowId]: false }));
+    }
+  };
+
+  /* ── DETAIL VIEW ── */
+  if (detailJob) {
+    const stats = detailJob.rowStats ?? {};
+    return (
+      <div className="tab-content">
+
+        <div className="bulk-detail-header">
+          <button className="btn btn--ghost btn--sm" onClick={() => setDetailJob(null)}>← Back to Jobs</button>
+          <div className="bulk-detail-title">
+            <span className="tbl__bold">Job #{detailJob.jobNumber}</span>
+            <span className="tbl__muted" style={{ fontSize: 13 }}>{detailJob.fileName}</span>
+            <span className={`badge ${jobStatusClass(detailJob.status)}`}>{detailJob.status}</span>
+            {(detailJob.status === "PENDING" || detailJob.status === "PROCESSING") && (
+              <span className="bulk-polling-dot" title="Polling for updates…" />
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card__header">
+            <h2 className="card__title">
+              Summary
+              {detailLoading && <span className="tbl__muted" style={{ fontSize: 12 }}>Loading…</span>}
+            </h2>
+            <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#64748b" }}>
+              <span>Total: <strong style={{ color: "#e2e8f0" }}>{detailJob.totalRows ?? "—"}</strong></span>
+              <span>Parsed: <strong style={{ color: "#34d399" }}>{detailJob.parsedRows ?? "—"}</strong></span>
+              <span>Invalid: <strong style={{ color: "#f87171" }}>{detailJob.invalidRows ?? "—"}</strong></span>
+            </div>
+          </div>
+          <div className="card__body">
+            <div className="bulk-stats-grid">
+              {Object.entries(stats).map(([k, v]) => (
+                <div key={k} className="bulk-stat-card">
+                  <div className="bulk-stat-count">{v}</div>
+                  <span className={`badge ${rowStatusClass(k)}`}>{k}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card__header">
+            <h2 className="card__title">Rows</h2>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {ROW_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  className={`btn btn--ghost btn--sm${rowFilter === s ? " btn--active" : ""}`}
+                  onClick={() => { setRowFilter(s); setRowPage(0); }}
+                >
+                  {s}
+                  {stats[s] != null && <span style={{ marginLeft: 5, fontSize: 11, color: "#64748b" }}>{stats[s]}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {rowsLoading && rows.length === 0 ? (
+            <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+          ) : rows.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state__icon">📭</div>
+              <p className="empty-state__text">No rows with status {rowFilter}.</p>
+            </div>
+          ) : (
+            <>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Name</th><th>Email</th><th>Mobile</th>
+                    <th>Status</th><th>Invites Sent</th>
+                    {canUpload && <th>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const isResending = resending[row.id];
+                    const rStatus     = resendStatus[row.id];
+                    const terminal    = ["PROMOTED","REJECTED","EXPIRED"].includes(row.status);
+                    return (
+                      <tr key={row.id}>
+                        <td className="tbl__muted">{row.rowNumber}</td>
+                        <td><span className="tbl__bold">{row.name || "—"}</span></td>
+                        <td className="tbl__mono">{row.email || "—"}</td>
+                        <td className="tbl__mono">{row.mobile || "—"}</td>
+                        <td>
+                          <span className={`badge ${rowStatusClass(row.status)}`}>{row.status}</span>
+                          {row.rejectionReason && (
+                            <div className="tbl__muted" style={{ fontSize: 11, marginTop: 3, maxWidth: 200 }}>
+                              {row.rejectionReason}
+                            </div>
+                          )}
+                        </td>
+                        <td className="tbl__muted">
+                          {row.inviteSentCount ?? 0}×
+                          {row.inviteLastSentAt ? ` (${new Date(row.inviteLastSentAt).toLocaleDateString()})` : ""}
+                        </td>
+                        {canUpload && (
+                          <td>
+                            {!terminal && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                <button
+                                  className="btn btn--ghost btn--sm"
+                                  disabled={isResending}
+                                  onClick={() => handleResend(row.id)}
+                                >
+                                  {isResending ? "Sending…" : "Resend"}
+                                </button>
+                                {rStatus === "ok" && <span style={{ fontSize: 11, color: "#34d399" }}>Sent!</span>}
+                                {rStatus && rStatus !== "ok" && <span style={{ fontSize: 11, color: "#f87171" }}>{rStatus}</span>}
+                              </div>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {rowTotalPages > 1 && (
+                <div className="bulk-pagination">
+                  <button className="btn btn--ghost btn--sm" disabled={rowPage === 0} onClick={() => setRowPage(p => p - 1)}>← Prev</button>
+                  <span className="tbl__muted">Page {rowPage + 1} of {rowTotalPages}</span>
+                  <button className="btn btn--ghost btn--sm" disabled={rowPage >= rowTotalPages - 1} onClick={() => setRowPage(p => p + 1)}>Next →</button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {(detailJob.invalidRows ?? 0) > 0 && (
+          <div className="card">
+            <div className="card__header">
+              <h2 className="card__title">
+                Parse Errors
+                <span className="card__count">{detailJob.invalidRows}</span>
+              </h2>
+              <button className="btn btn--ghost btn--sm" onClick={toggleParseErrors} disabled={parseErrLoading}>
+                {parseErrLoading ? "Loading…" : showParseErrors ? "Hide" : "Show"}
+              </button>
+            </div>
+            {showParseErrors && (
+              <div className="card__body">
+                {(parseErrors ?? []).length === 0 ? (
+                  <p className="status">No parse errors recorded.</p>
+                ) : (
+                  <div className="bulk-error-list">
+                    {(parseErrors ?? []).map((e, i) => (
+                      <div key={i} className="bulk-error-item">
+                        <div className="bulk-error-row">
+                          <span className="tbl__muted" style={{ whiteSpace: "nowrap" }}>Row {e.rowNumber}:</span>
+                          <code className="bulk-error-raw">{e.rawLine}</code>
+                        </div>
+                        <div className="bulk-error-messages">
+                          {(e.errors ?? []).map((msg, j) => (
+                            <span key={j} className="bulk-error-msg">{msg}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ── LIST VIEW ── */
+  return (
+    <div className="tab-content">
+
+      {canUpload && (
+        <div className="card">
+          <div className="card__header">
+            <h2 className="card__title">Upload CSV</h2>
+          </div>
+          <div className="card__body">
+            {uploadSuccess && (
+              <div className="bulk-success-banner">
+                <span>✓ {uploadSuccess}</span>
+                <button onClick={() => setUploadSuccess(null)} style={{ background: "none", border: "none", color: "#34d399", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
+              </div>
+            )}
+            {uploadError && (
+              <div className="error-banner" style={{ marginBottom: 14 }}>
+                <span>⚠</span> {uploadError}
+              </div>
+            )}
+            <div className="bulk-upload-zone">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                id="bulk-file-input"
+                style={{ display: "none" }}
+                onChange={handleFileChange}
+              />
+              <label htmlFor="bulk-file-input" className="bulk-upload-label">
+                <span className="bulk-upload-icon">📄</span>
+                <span className="bulk-upload-text">
+                  {selectedFile ? selectedFile.name : "Click to choose a CSV file"}
+                </span>
+                {selectedFile && (
+                  <span className="bulk-upload-size">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+                )}
+              </label>
+              <div className="bulk-upload-meta">
+                Required columns: <code>email</code>, <code>mobile</code>, <code>name</code> &nbsp;·&nbsp; Max 10 MB
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+                <button
+                  className="btn btn--primary btn--sm"
+                  disabled={!selectedFile || uploading}
+                  onClick={handleUpload}
+                >
+                  {uploading ? "Uploading…" : "Upload"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card__header">
+          <h2 className="card__title">
+            Upload Jobs
+            <span className="card__count">{jobs.length}</span>
+          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {jobs.some(j => j.status === "PENDING" || j.status === "PROCESSING") && (
+              <span className="bulk-polling-dot" title="Polling for updates…" />
+            )}
+            <button className="btn btn--ghost btn--sm" onClick={loadJobs} disabled={jobsLoading}>
+              {jobsLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+        </div>
+
+        {jobsError && (
+          <p className="status status--error" style={{ padding: "12px 24px" }}>
+            Failed to load ({jobsError})
+          </p>
+        )}
+
+        {jobsLoading && jobs.length === 0 ? (
+          <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+        ) : jobs.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state__icon">📂</div>
+            <p className="empty-state__text">No upload jobs yet. Upload a CSV to get started.</p>
+          </div>
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>#</th><th>File</th><th>Status</th>
+                <th>Total</th><th>Parsed</th><th>Invalid</th>
+                <th>Submitted</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => (
+                <tr key={job.id}>
+                  <td className="tbl__muted">#{job.jobNumber}</td>
+                  <td><span className="tbl__bold">{job.fileName}</span></td>
+                  <td><span className={`badge ${jobStatusClass(job.status)}`}>{job.status}</span></td>
+                  <td className="tbl__muted">{job.totalRows ?? "—"}</td>
+                  <td className="tbl__muted">{job.parsedRows ?? "—"}</td>
+                  <td className="tbl__muted">{job.invalidRows ?? "—"}</td>
+                  <td className="tbl__muted">{job.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}</td>
+                  <td>
+                    <button className="btn btn--ghost btn--sm" onClick={() => openDetail(job)}>View</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/*  Consumer USER module tab — imported members from bulk      */
+/* ─────────────────────────────────────────────────────────── */
+function ConsumerUserModuleTab({ actions }) {
+  const canRead   = actions.has("READ");
+  const canUpdate = actions.has("UPDATE");
+
+  const [stats, setStats]             = useState(null);
+  const [users, setUsers]             = useState([]);
+  const [loading, setLoading]         = useState(false);
+  const [totalItems, setTotalItems]   = useState(0);
+  const [page, setPage]               = useState(0);
+  const [totalPages, setTotalPages]   = useState(1);
+  const [search, setSearch]           = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [expandedId, setExpandedId]   = useState(null);
+  const [statusEdit, setStatusEdit]   = useState({});
+  const [saving, setSaving]           = useState(null);
+  const [saveErr, setSaveErr]         = useState(null);
+  const searchTimeout = useRef(null);
+
+  const loadStats = useCallback(async () => {
+    if (!canRead) return;
+    try { setStats(await consumerUserService.getConsumerUserStats()); } catch { /* silently ignored */ }
+  }, [canRead]);
+
+  const loadUsers = useCallback(async (q, st, pg) => {
+    if (!canRead) return;
+    setLoading(true);
+    try {
+      const data = await consumerUserService.listConsumerUsers({ search: q, status: st, page: pg, size: 20 });
+      setUsers(data.items ?? []);
+      setTotalItems(data.totalItems ?? 0);
+      setTotalPages(data.totalPages ?? 1);
+    } catch { /* silently ignored */ } finally { setLoading(false); }
+  }, [canRead]);
+
+  useEffect(() => { loadStats(); loadUsers("", "", 0); }, [loadStats, loadUsers]);
+  useEffect(() => () => clearTimeout(searchTimeout.current), []);
+
+  const handleSearchChange = (e) => {
+    const q = e.target.value;
+    setSearch(q);
+    clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => { setPage(0); loadUsers(q, statusFilter, 0); }, 400);
+  };
+
+  const handleStatusFilter = (val) => {
+    setStatusFilter(val); setPage(0); loadUsers(search, val, 0);
+  };
+
+  const handlePageChange = (pg) => { setPage(pg); loadUsers(search, statusFilter, pg); };
+
+  const toggleExpand = (id) => {
+    setExpandedId(p => p === id ? null : id);
+    setSaveErr(null);
+  };
+
+  const handleStatusSave = async (user) => {
+    const edit      = statusEdit[user.id] ?? {};
+    const newStatus = edit.status ?? user.status;
+    const reason    = edit.reason ?? "";
+    if (newStatus === user.status && !reason) return;
+    setSaving(user.id); setSaveErr(null);
+    try {
+      const updated = await consumerUserService.updateConsumerUserStatus(user.id, { status: newStatus, reason });
+      setUsers(prev => prev.map(u => u.id === user.id ? updated : u));
+      setStatusEdit(p => { const n = { ...p }; delete n[user.id]; return n; });
+      setExpandedId(null);
+      loadStats();
+    } catch (err) {
+      setSaveErr(err?.response?.data?.errorCode ?? "UPDATE_FAILED");
+    } finally { setSaving(null); }
+  };
+
+  const initial = (u) => (u.name || u.email || "?")[0].toUpperCase();
+
+  return (
+    <div className="tab-content">
+
+      {stats && (
+        <div className="cu-stats-row">
+          {[
+            { label: "Active",     val: stats.active,     cls: "badge--active" },
+            { label: "Suspended",  val: stats.suspended,  cls: "badge--suspended" },
+            { label: "Inactive",   val: stats.inactive,   cls: "badge--inactive" },
+            { label: "Unverified", val: stats.unverified, cls: "badge--otp-sent" },
+            { label: "Total",      val: stats.total,      cls: "badge--system" },
+          ].map(({ label, val, cls }) => (
+            <div key={label} className="cu-stat-card">
+              <div className="cu-stat-val">{val ?? "—"}</div>
+              <div className="cu-stat-label"><span className={`badge ${cls}`}>{label}</span></div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card__body" style={{ paddingBottom: 20 }}>
+          <div className="cu-filter-bar">
+            <div className="form__field" style={{ flex: 2 }}>
+              <label className="form__label">Search by name</label>
+              <input
+                className="form__input"
+                placeholder="Alice…"
+                value={search}
+                onChange={handleSearchChange}
+              />
+            </div>
+            <div className="form__field" style={{ flex: 1 }}>
+              <label className="form__label">Status</label>
+              <select
+                className="form__input form__select"
+                value={statusFilter}
+                onChange={(e) => handleStatusFilter(e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card__header">
+          <h2 className="card__title">
+            Members
+            <span className="card__count">{totalItems}</span>
+          </h2>
+          <button className="btn btn--ghost btn--sm" onClick={() => loadUsers(search, statusFilter, page)} disabled={loading}>
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+        </div>
+
+        {loading && users.length === 0 ? (
+          <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+        ) : users.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state__icon">👥</div>
+            <p className="empty-state__text">No members found. Import some via the Operations tab.</p>
+          </div>
+        ) : (
+          <>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Member</th><th>Mobile</th><th>Status</th>
+                  <th>Source</th><th>Enrolled</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => {
+                  const isOpen = expandedId === u.id;
+                  const edit   = statusEdit[u.id] ?? {};
+                  return (
+                    <>
+                      <tr key={u.id} className={isOpen ? "ut-row--open" : ""}>
+                        <td>
+                          <div className="ut-user-cell">
+                            <div className="ut-avatar">{initial(u)}</div>
+                            <div className="ut-user-info">
+                              <span className="ut-user-name">{u.name || "—"}</span>
+                              <span className="ut-user-email">{u.email || "—"}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="tbl__mono">{u.mobile || "—"}</td>
+                        <td><span className={`badge badge--${u.status}`}>{u.status}</span></td>
+                        <td className="tbl__muted">{u.source || u.registrationChannel || "—"}</td>
+                        <td className="tbl__muted">
+                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
+                        </td>
+                        <td>
+                          <button
+                            className={`btn btn--ghost btn--sm${isOpen ? " btn--active" : ""}`}
+                            onClick={() => toggleExpand(u.id)}
+                          >
+                            {isOpen ? "Close" : canUpdate ? "Edit" : "View"}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {isOpen && (
+                        <tr key={`${u.id}-panel`} className="expand-row">
+                          <td colSpan={6}>
+                            <div className="expand-panel">
+                              <div className="expand-panel__header">
+                                <div className="ut-avatar ut-avatar--sm">{initial(u)}</div>
+                                <span className="expand-panel__title">
+                                  Profile — <strong>{u.name || u.email}</strong>
+                                </span>
+                                {!canUpdate && <span className="expand-panel__readonly">Read only</span>}
+                              </div>
+                              <div className="expand-panel__body">
+                                <div className="cu-detail-grid">
+                                  {[
+                                    ["Email",   u.email],
+                                    ["Mobile",  u.mobile],
+                                    ["DOB",     u.dob],
+                                    ["Gender",  u.gender],
+                                    ["Pincode", u.pincode],
+                                    ["City",    u.city],
+                                    ["State",   u.state],
+                                    ["PAN",     u.panNumber],
+                                    ["Aadhaar", u.aadhaarLast4 ? `xxxx ${u.aadhaarLast4}` : null],
+                                    ["Emp ID",  u.employeeId],
+                                  ].filter(([, v]) => v).map(([label, val]) => (
+                                    <div key={label} className="org-detail-item">
+                                      <span className="org-detail-label">{label}</span>
+                                      <span className="org-detail-value">{val}</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {canUpdate && (
+                                  <div className="cu-status-edit">
+                                    <div style={{ height: 1, background: "#1e3a5f", margin: "16px 0" }} />
+                                    <p className="users-panel__section-label">Update Status</p>
+                                    {saveErr && (
+                                      <div className="error-banner" style={{ marginBottom: 12 }}>
+                                        <span>⚠</span> {saveErr}
+                                      </div>
+                                    )}
+                                    <div className="form__row" style={{ marginBottom: 12 }}>
+                                      <div className="form__field">
+                                        <label className="form__label">Status</label>
+                                        <select
+                                          className="form__input form__select"
+                                          value={edit.status ?? u.status}
+                                          onChange={(e) => setStatusEdit(p => ({ ...p, [u.id]: { ...p[u.id], status: e.target.value } }))}
+                                        >
+                                          <option value="active">Active</option>
+                                          <option value="suspended">Suspended</option>
+                                          <option value="inactive">Inactive</option>
+                                        </select>
+                                      </div>
+                                      <div className="form__field">
+                                        <label className="form__label">
+                                          Reason
+                                          <span style={{ fontWeight: 400, textTransform: "none", fontSize: 10, color: "#64748b", marginLeft: 4 }}>optional</span>
+                                        </label>
+                                        <input
+                                          className="form__input"
+                                          placeholder="e.g. User requested suspension"
+                                          maxLength={500}
+                                          value={edit.reason ?? ""}
+                                          onChange={(e) => setStatusEdit(p => ({ ...p, [u.id]: { ...p[u.id], reason: e.target.value } }))}
+                                        />
+                                      </div>
+                                    </div>
+                                    <button
+                                      className="btn btn--primary btn--sm"
+                                      disabled={saving === u.id || ((edit.status ?? u.status) === u.status && !edit.reason)}
+                                      onClick={() => handleStatusSave(u)}
+                                    >
+                                      {saving === u.id ? "Saving…" : "Save"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {totalPages > 1 && (
+              <div className="bulk-pagination">
+                <button className="btn btn--ghost btn--sm" disabled={page === 0} onClick={() => handlePageChange(page - 1)}>← Prev</button>
+                <span className="tbl__muted">Page {page + 1} of {totalPages}</span>
+                <button className="btn btn--ghost btn--sm" disabled={page >= totalPages - 1} onClick={() => handlePageChange(page + 1)}>Next →</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────── */
 /*  Generic fallback tab — for modules with no mapped API yet */
 /* ─────────────────────────────────────────────────────────── */
 function GenericModuleTab({ module, actions }) {
@@ -1272,9 +2030,17 @@ function GenericModuleTab({ module, actions }) {
 /*  Route module → component                                   */
 /* ─────────────────────────────────────────────────────────── */
 function ModuleTab({ module, actions, can }) {
-  if (module === "ORG")  return <OrgModuleTab  actions={actions} can={can} />;
-  if (module === "USER") return <UserModuleTab actions={actions} can={can} />;
-  if (module === "ROLE") return <RoleModuleTab actions={actions} can={can} />;
+  if (module === "ORG")      return <OrgModuleTab  actions={actions} can={can} />;
+  if (module === "ROLE")     return <RoleModuleTab actions={actions} can={can} />;
+  if (module === "BULK")     return <BulkModuleTab actions={actions} />;
+  if (module === "CMS_USER") return <UserModuleTab actions={actions} can={can} />;
+  // USER module: consumer users (Plan B) only have READ/UPDATE.
+  // If CREATE or DELETE is present the backend is pre-Plan-A → render admin user tab.
+  if (module === "USER") {
+    if (actions.has("CREATE") || actions.has("DELETE"))
+      return <UserModuleTab actions={actions} can={can} />;
+    return <ConsumerUserModuleTab actions={actions} />;
+  }
   return <GenericModuleTab module={module} actions={actions} />;
 }
 
@@ -1388,10 +2154,12 @@ function OrgDropdown() {
 const EXCLUDED_MODULES = new Set(["MEMBER", "DEPENDENT"]);
 
 const MODULE_LABELS = {
-  ORG:  "Organizations",
-  USER: "Manage Users",
-  ROLE: "Manage Roles",
-  BULK: "Operations",
+  ORG:      "Organizations",
+  USER:     "Manage Users",   // pre-Plan-A: admin users; post-Plan-B: consumer members
+  CMS_USER: "Manage Users",   // post-Plan-A: admin users under /cms-users
+  ROLE:     "Manage Roles",
+  BULK:     "Operations",
+  AUDIT:    "Audit Log",
 };
 
 export default function SuperAdminDashboard() {

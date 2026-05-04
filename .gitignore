@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Deployment credentials (never commit)
+.env.deploy
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,3 +1,81 @@
+## 2026-05-04 — code-review (staged): bulk-upload + cms-users + verify pipeline
+
+### [Medium] ConsumerUserModuleTab: search debounce timeout not cleared on unmount
+- **File**: src/components/SuperAdminDashboard/index.jsx (ConsumerUserModuleTab)
+- **Issue**: `searchTimeout.current` is set via `setTimeout` in `handleSearchChange` but never cleared when the component unmounts. If the tab is switched mid-debounce, the callback fires on an unmounted component and calls `setPage` + `loadUsers`, which may log React setState-on-unmounted warnings.
+- **Suggested fix**: Add `useEffect(() => () => clearTimeout(searchTimeout.current), []);` inside ConsumerUserModuleTab.
+- **Status**: Fixed in this commit
+
+### [Low] bulkService.resendInvite returns full envelope instead of payload
+- **File**: src/services/bulkService.js:37
+- **Issue**: Returns `res.data` while every other function in the file returns `res.data.data`. No current caller uses the return value, but it is inconsistent and will silently give callers the wrong shape if they start consuming it.
+- **Suggested fix**: Change `return res.data;` → `return res.data.data;`
+- **Status**: Fixed in this commit
+
+### [Low] verifyService.sendOtp discards response data
+- **File**: src/services/verifyService.js:4
+- **Issue**: `await AxiosUtils.post(...)` result is discarded. The spec says the response includes `{ sent: true, expiresInSeconds: 600 }` which could be used to show an OTP expiry countdown. Not breaking now since VerifyPortal ignores the return value, but a missed future capability.
+- **Suggested fix**: `const res = await ...; return res.data?.data;`
+- **Status**: Fixed in this commit
+
+## 2026-05-04 — code-review: recently changed + new files (12 files)
+
+### [High] VerifyPortal calls AxiosUtils directly — violates service-layer convention
+- **File**: src/components/VerifyPortal/index.jsx:49, 71
+- **Issue**: `AxiosUtils.post(...)` is called directly from the component. CLAUDE.md states "All API calls go through src/services/*.js — never call AxiosUtils directly from components". Bypasses any future service-layer changes (error mapping, auth wrappers, etc.).
+- **Suggested fix**: Create `src/services/verifyService.js` with `sendOtp(token)` and `confirmOtp(token, otp)`, then import and call those in the component.
+- **Status**: Fixed (created verifyService.js; VerifyPortal now imports from it)
+
+### [Medium] AppContext.login() never sets X-ORG-ID header
+- **File**: src/context/AppContext.jsx:120-132
+- **Issue**: `login()` calls `setActiveOrgState(activeOrg)` (React state) but never calls `setActiveOrg(org.id)` from AxiosUtils. Any component using the legacy `login()` path ends up with the org in local state but the `X-ORG-ID` header missing, causing subsequent API calls to return `INVALID_ORG_CONTEXT`. (The primary Redux path via `setSessionFromApi` is unaffected.)
+- **Suggested fix**: Add `if (activeOrg) setActiveOrg(activeOrg.id);` before `setActiveOrgState(activeOrg)` inside `login()`.
+- **Status**: Open
+
+### [Medium] OrgModuleTab.handleSave swallows dispatch errors silently
+- **File**: src/components/SuperAdminDashboard/index.jsx:104-119
+- **Issue**: `handleSave` awaits `dispatch(apiUpdateOrg(...))` and `dispatch(apiSuspendOrg(...))` but never checks the results. On API failure the edit panel is silently closed and `editSaving` is reset — the user gets no error feedback and doesn't know the save failed.
+- **Suggested fix**: Check `apiUpdateOrg.rejected.match(res)` and `apiSuspendOrg.rejected.match(res)` and surface the error before calling `closePanel()`.
+- **Status**: Open
+
+### [Medium] UserModuleTab.handleRevoke has no error handling
+- **File**: src/components/SuperAdminDashboard/index.jsx:534-536
+- **Issue**: `handleRevoke` dispatches `apiRevokeRole` but doesn't check or display errors. A network error or permission failure silently does nothing — the role chip stays visible and the user has no way to know the revoke failed.
+- **Suggested fix**: Check `apiRevokeRole.rejected.match(res)` and set `assignErr` or a similar state to surface the message.
+- **Status**: Open
+
+### [Medium] ConsumerUserModuleTab.loadUsers silently swallows errors
+- **File**: src/components/SuperAdminDashboard/index.jsx:1722-1731
+- **Issue**: The `catch` block in `loadUsers` is empty (`/* silently ignored */`). When the API call fails, `users` stays empty and `loading` goes false, leaving the user staring at an empty "No members found" state with no explanation.
+- **Suggested fix**: Set an error state in the catch and render an error banner, similar to the pattern used in `OrgModuleTab`.
+- **Status**: Open
+
+### [Medium] bulkService.resendInvite returns res.data instead of res.data.data
+- **File**: src/services/bulkService.js:40
+- **Issue**: `resendInvite` returns `res.data` while every other function in the file returns `res.data.data`. Any future caller that uses the return value gets the full envelope object (`{ success, data, ... }`) instead of the payload. The current component doesn't use the return value, so it doesn't break now — but it's a latent inconsistency.
+- **Suggested fix**: Change `return res.data;` to `return res.data.data;` to match every other service function.
+- **Status**: Open
+
+### [Low] OrgModuleTab delete fires immediately with no confirmation
+- **File**: src/components/SuperAdminDashboard/index.jsx:135-139
+- **Issue**: Clicking "Delete" on an org immediately dispatches `apiDeleteOrg` with no confirmation dialog. UserModuleTab has a confirmation modal for the equivalent action. Accidental org deletion can't be undone.
+- **Suggested fix**: Add a confirmation modal (or `window.confirm`) before dispatching, consistent with `UserModuleTab`'s `setConfirmAction` pattern.
+- **Status**: Open
+
+### [Low] N+1 fetchUserRoles pattern fires on mount
+- **File**: src/components/SuperAdminDashboard/index.jsx:474-478, 925-928
+- **Issue**: Both `UserModuleTab` and `RoleModuleTab` dispatch `fetchUserRoles(u.id)` for every user returned by `fetchUsers`. With 20 users this is 20 concurrent GET requests on mount. There is no deduplication or batch endpoint used.
+- **Suggested fix**: Either fetch user-role data lazily (only when a row is expanded), or use a single batch endpoint if the backend supports it.
+- **Status**: Open
+
+### [Low] RoleModuleTab.handleDelete redundantly re-fetches roles from API
+- **File**: src/components/SuperAdminDashboard/index.jsx:974-983
+- **Issue**: `handleDelete` calls `roleService.listRoles()` to check if the role exists and is not a system role, even though `roles` from the Redux selector is already loaded and up-to-date. This makes an extra GET /roles call that is unnecessary.
+- **Suggested fix**: Use `roles.find(r => r.id === roleId)` (the Redux state) instead of the API call.
+- **Status**: Open
+
+---
+
 ## 2026-04-29 — code-review: session-changed files (8 files)
 
 ### [Medium] Form fields cleared on createOrg failure — user loses input
@@ -50,7 +128,7 @@
 - **File**: src/context/AppContext.jsx:38-47
 - **Issue**: On mount, the provider rehydrates `currentUser` and `activeOrg` from localStorage but never calls `setActiveOrg(activeOrg.id)` from AxiosUtils. After a hard refresh the user appears logged-in but every org-scoped API call goes out without `X-ORG-ID` and fails with `INVALID_ORG_CONTEXT`.
 - **Suggested fix**: After computing the initial `activeOrg` (or in a one-shot `useEffect`), call `setActiveOrg(activeOrg.id)` if one is present.
-- **Status**: Open
+- **Status**: Fixed (setActiveOrg called inside useState initializer at line 42)
 
 ### [High] Missing key on Fragment used inside .map()
 - **File**: src/components/SuperAdminDashboard/index.jsx:257-258, 657-658, 1042-1043

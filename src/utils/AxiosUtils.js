@@ -52,24 +52,38 @@ AxiosUtils.interceptors.response.use(
 
   async (error) => {
     const originalRequest = error.config;
+    const status    = error.response?.status;
     const errorCode = error.response?.data?.errorCode;
 
-    if (!errorCode) return Promise.reject(error);
-
-    // Hard logout — no retry, go to login immediately
-    if (HARD_LOGOUT_CODES.has(errorCode)) {
+    // If the refresh call itself failed, drain the queue and log out immediately.
+    // Without this guard the interceptor re-queues the refresh request waiting
+    // for processQueue — which never fires — causing a deadlock.
+    if (originalRequest.url?.includes("/auth/refresh")) {
+      processQueue(false);
+      isRefreshing = false;
       redirectToLogin();
       return Promise.reject(error);
     }
 
-    // Org context errors — redirect to org picker (if implemented)
+    // Hard logout — no retry, go to login immediately
+    if (errorCode && HARD_LOGOUT_CODES.has(errorCode)) {
+      redirectToLogin();
+      return Promise.reject(error);
+    }
+
+    // Org context errors — clear header and let the caller handle
     if (errorCode === "INVALID_ORG_CONTEXT" || errorCode === "INACTIVE_ORG") {
       clearActiveOrg();
       return Promise.reject(error);
     }
 
-    // Silent token refresh — also attempt on UNAUTHORIZED (token may be expired/missing)
-    if ((errorCode === "TOKEN_EXPIRED" || errorCode === "UNAUTHORIZED") && !originalRequest._retried) {
+    // Silent token refresh on TOKEN_EXPIRED, UNAUTHORIZED, or any bare 401
+    const shouldRefresh =
+      errorCode === "TOKEN_EXPIRED" ||
+      errorCode === "UNAUTHORIZED"  ||
+      status === 401;
+
+    if (shouldRefresh && !originalRequest._retried) {
       originalRequest._retried = true;
 
       if (isRefreshing) {

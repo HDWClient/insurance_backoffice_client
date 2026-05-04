@@ -38,7 +38,9 @@ export function AppProvider({ children }) {
   const [activeOrg, setActiveOrgState] = useState(() => {
     const u = load("ih_session_user", null);
     if (!u) return null;
-    return u.orgs?.find((o) => o.id === u.currentOrgId) ?? u.orgs?.[0] ?? null;
+    const org = u.orgs?.find((o) => o.id === u.currentOrgId) ?? u.orgs?.[0] ?? null;
+    if (org) setActiveOrg(org.id);
+    return org;
   });
   const [isSuperAdmin, setIsSuperAdmin] = useState(() => {
     if (sessionStorage.getItem("ih_sa") === "1") return true;

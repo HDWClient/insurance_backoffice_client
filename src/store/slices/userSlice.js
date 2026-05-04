@@ -11,10 +11,7 @@ export const fetchUsers = createAsyncThunk(
     }
   },
   {
-    condition: (_, { getState }) => {
-      const { loading, items } = getState().users;
-      return !loading && items.length === 0;
-    },
+    condition: (_, { getState }) => !getState().users.loading,
   }
 );
 

@@ -11,10 +11,7 @@ export const fetchOrgs = createAsyncThunk(
     }
   },
   {
-    condition: (_, { getState }) => {
-      const { loading, orgs } = getState().orgs;
-      return !loading && orgs.length === 0;
-    },
+    condition: (_, { getState }) => !getState().orgs.loading,
   }
 );
 

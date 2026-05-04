@@ -34,17 +34,17 @@ export async function deleteRole(id) {
   await AxiosUtils.delete(`/roles/${id}`);
 }
 
-// ── GET /roles/{id}/users ──────────────────────────────────
-// Returns list of users assigned to this role
+// ── GET /roles/{id}/cms-users ─────────────────────────────
+// Returns list of cms-users assigned to this role
 export async function getRoleUsers(roleId) {
-  const res = await AxiosUtils.get(`/roles/${roleId}/users`);
+  const res = await AxiosUtils.get(`/roles/${roleId}/cms-users`);
   return res.data.data;
 }
 
-// ── DELETE /roles/{id}/users ───────────────────────────────
+// ── DELETE /roles/{id}/cms-users ──────────────────────────
 // Bulk-revoke all assignments in one shot: { userIds: [...] }
 export async function bulkRevokeRoleUsers(roleId, userIds) {
-  const res = await AxiosUtils.delete(`/roles/${roleId}/users`, { data: { userIds } });
+  const res = await AxiosUtils.delete(`/roles/${roleId}/cms-users`, { data: { userIds } });
   return res.data.data;
 }
 

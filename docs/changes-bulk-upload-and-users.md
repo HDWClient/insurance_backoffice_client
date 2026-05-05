@@ -1,12 +1,111 @@
 # Frontend Changes — Bulk Upload + Consumer `/users` Surface
 
-> **Last Updated:** 2026-04-30
-> **Backend version:** Plan B — bulk upload, verification portal, consumer-user management
+> **Last Updated:** 2026-05-05
+> **Backend version:** Plan B + Draft/Dispatch/Cancel revision (2026-05-05)
 > **Audience:** Frontend developers (or AI agents working on the frontend codebase)
 > **Prerequisite:** [changes-cms-users-rename.md](changes-cms-users-rename.md) (Plan A) must already be applied
 
-This is a complete spec of the new bulk-upload + verification + consumer-user
-surface added to `kinko-backoffice-backend`. Precise enough to apply mechanically.
+This is a complete spec of the bulk-upload + verification + consumer-user
+surface in `kinko-backoffice-backend`. Precise enough to apply mechanically.
+
+---
+
+## What changed since 2026-04-30 (delta from previous integration)
+
+If you already integrated the original Plan B spec, here is everything that
+changed. Anything not listed below is unchanged.
+
+### Lifecycle change: invites are no longer auto-sent on upload
+
+Previously: `POST /bulk/upload` parsed the CSV and immediately dispatched
+invitation emails to every staged row.
+
+Now: rows land in a new **`DRAFT`** state after parse. **No emails go out until
+the admin explicitly hits `POST /bulk/{id}/dispatch`.** This gives admins a
+review window — they can edit rows, cancel rows, or cancel the whole job before
+broadcasting invites.
+
+The new flow:
+
+```
+POST /bulk/upload      → job COMPLETED, rows DRAFT  (no email yet)
+PUT /bulk/.../rows/{rowId}  → edit DRAFT row (optional)
+POST /bulk/.../rows/{rowId}/cancel → cancel single row (optional, any pre-promotion state)
+POST /bulk/{id}/dispatch  → invites go out, DRAFT rows flip to STAGED
+                              ↓
+                          rest of flow unchanged: STAGED → OTP_SENT → PROMOTED
+```
+
+Or short-circuit:
+
+```
+POST /bulk/{id}/cancel  → bulk-cancel every non-PROMOTED row, job → CANCELLED
+```
+
+### New row statuses
+
+Two new values in the `BulkUploadRowStatus` enum:
+
+| Status | Meaning |
+|---|---|
+| `DRAFT` | Parsed and persisted; awaiting admin review/dispatch. **NEW default post-parse status** (was `STAGED`). |
+| `CANCELLED` | Admin cancelled this row pre-promotion. Verify endpoints return `INVITE_CANCELLED`. |
+
+`STAGED` now means **invite has been dispatched** (was: parsed + invited in one step).
+
+### New job status
+
+| Status | Meaning |
+|---|---|
+| `CANCELLED` | Admin called `POST /bulk/{id}/cancel`. All non-PROMOTED rows flipped to `CANCELLED`. |
+
+### New endpoints
+
+| Method | Path | Permission |
+|---|---|---|
+| `PUT` | `/bulk/{idOrJobNumber}/rows/{rowId}` | `BULK_UPLOAD` |
+| `POST` | `/bulk/{idOrJobNumber}/rows/{rowId}/cancel` | `BULK_UPLOAD` |
+| `POST` | `/bulk/{idOrJobNumber}/cancel` | `BULK_UPLOAD` |
+| `POST` | `/bulk/{idOrJobNumber}/dispatch` | `BULK_UPLOAD` |
+
+### New / updated query params
+
+`GET /bulk/{idOrJobNumber}/rows` now accepts a `search` query param (exact mobile,
+exact rowNumber, or substring on employeeId/pincode/city/state). Email and name
+remain unsearchable at the API level due to non-deterministic encryption — show
+the existing client-side filter UI restricted to those columns or surface the
+search box for the supported columns.
+
+### New error codes
+
+| errorCode | Where | Meaning |
+|---|---|---|
+| `INVALID_ROW_STATE` | edit, cancel-row | Row not in a state that allows the operation (already exists from resend-invite) |
+| `INVALID_JOB_STATE` | dispatch, cancel-job | Job not in a state that allows the operation |
+| `DUPLICATE_MOBILE` | edit | Mobile change collides with another active row in the same org |
+| `INVITE_CANCELLED` | /verify/* | Recipient is hitting an invite for a row that the admin cancelled |
+| `INVITE_NOT_DISPATCHED` | /verify/* | Recipient somehow has a token for a DRAFT row (shouldn't happen in practice) |
+
+### Required UI changes for the frontend
+
+1. **Bulk upload detail page** — add a "Review draft rows → Send invites" CTA.
+   The job's `status=COMPLETED` no longer means invites are out; check
+   `rowStats.STAGED + rowStats.OTP_SENT + rowStats.PROMOTED + ... > 0` or just
+   show the dispatch button while `rowStats.DRAFT > 0`.
+2. **Per-row actions** — when row is `DRAFT`, show "Edit" + "Cancel". When
+   `STAGED` or beyond (pre-PROMOTED), show "Cancel" + "Resend invite".
+3. **Job-level cancel** — destructive button that prompts for confirmation and
+   POSTs to `/bulk/{id}/cancel`.
+4. **Search box** on the rows table backed by the new `?search=` param.
+5. **Verification portal** — handle the new `INVITE_CANCELLED` and
+   `INVITE_NOT_DISPATCHED` error codes alongside the existing
+   `INVITE_SUPERSEDED` — show the message verbatim from the API response.
+
+No schema changes to existing response shapes. Existing endpoints behave
+identically — only the post-parse row status changes from `STAGED` to `DRAFT`,
+and the auto-send-on-import effect is gone (controlled by the same
+`bulk.invite.send-on-import` config flag, which now only applies when
+`/dispatch` is called and is left at default `true`).
 
 ---
 
@@ -76,7 +175,9 @@ columns are stored in the row's `extras` JSON.
 It's populated in `GET /bulk/{id}` — see below.
 
 **Job lifecycle (poll `GET /bulk/{id}`):** `PENDING → PROCESSING → COMPLETED` (or `FAILED`).
-A 4-row CSV completes in <3s on the local stack. Recommended polling cadence: 1–2s.
+After admin review, `POST /bulk/{id}/dispatch` flips DRAFT rows → STAGED + sends invites,
+or `POST /bulk/{id}/cancel` moves the whole job to `CANCELLED`. A 4-row CSV completes
+parse in <3s on the local stack. Recommended polling cadence: 1–2s during PROCESSING.
 
 ### GET `/bulk`  (BULK_READ)
 
@@ -106,14 +207,16 @@ this job. Always all 8 keys present, zero for empty buckets:
   "parsedRows": 1,
   "invalidRows": 0,
   "rowStats": {
-    "STAGED": 1,
+    "DRAFT": 1,
+    "STAGED": 0,
     "OTP_SENT": 0,
     "VERIFIED": 0,
     "PROMOTED": 0,
     "REJECTED": 3,
     "EXPIRED": 0,
     "INVITE_FAILED": 0,
-    "SUPERSEDED": 0
+    "SUPERSEDED": 0,
+    "CANCELLED": 0
   },
   "startedAt": "...",
   "completedAt": "...",
@@ -122,7 +225,7 @@ this job. Always all 8 keys present, zero for empty buckets:
 ```
 
 **What the count fields mean:**
-- `parsedRows` = rows that ended up `STAGED` (eligible for invitation + promotion)
+- `parsedRows` = rows that ended up `DRAFT` (eligible for invitation + promotion once the admin dispatches)
 - `invalidRows` = **only** CSV-format errors (rows missing required fields — they have no DB representation, only show in `GET /bulk/{id}/errors`)
 - Duplicates / cannot-supersede-promoted live as `REJECTED` rows in `bulk_upload_rows` and are clickable via `GET /bulk/{id}/rows?status=REJECTED`. They count toward `rowStats.REJECTED`, NOT `invalidRows`.
 
@@ -130,8 +233,11 @@ this job. Always all 8 keys present, zero for empty buckets:
 
 Paginated staged rows. **PII fields decrypted server-side** before returning.
 
-- Query: `?status=&page=&size=` where status is one of:
-  `STAGED | OTP_SENT | VERIFIED | PROMOTED | REJECTED | EXPIRED | INVITE_FAILED | SUPERSEDED`
+- Query: `?status=&search=&page=&size=` where status is one of:
+  `DRAFT | STAGED | OTP_SENT | VERIFIED | PROMOTED | REJECTED | EXPIRED | INVITE_FAILED | SUPERSEDED | CANCELLED`
+- `search` (optional): exact mobile, exact rowNumber if numeric, or
+  case-insensitive substring on `employeeId`, `pincode`, `city`, `state`. Email
+  and name aren't searchable server-side (encryption at rest).
 
 For `REJECTED` rows, the `rejectionReason` field carries a human-readable string
 explaining why — frontend can show this verbatim or pattern-match the prefix to
@@ -183,11 +289,15 @@ Returns `null` in `data` if no parse-time errors occurred.
 
 What happens when the same admin uploads the same (or near-same) CSV twice:
 
-| Scenario | Per-row outcome on the new upload | Email sent? |
+Email is no longer sent automatically on upload — admin must trigger
+`POST /bulk/{id}/dispatch`. The "Email sent?" column below assumes admin
+later dispatches.
+
+| Scenario | Per-row outcome on the new upload | Email on dispatch? |
 |---|---|---|
-| New `(orgId, mobile)` not seen before | `STAGED` | ✓ |
+| New `(orgId, mobile)` not seen before | `DRAFT` | ✓ |
 | Same `(orgId, mobile)` AND identical content fingerprint | `REJECTED` with reason `DUPLICATE: identical row already exists (job X, row Y, status Z)` | ✗ |
-| Same `(orgId, mobile)` AND different fingerprint AND old row not yet `PROMOTED` | New row `STAGED` + old row flips to `SUPERSEDED` (its OTP invalidated) | ✓ for new row only |
+| Same `(orgId, mobile)` AND different fingerprint AND old row not yet `PROMOTED` | New row `DRAFT` + old row flips to `SUPERSEDED` (its OTP invalidated) | ✓ for new row only |
 | Same `(orgId, mobile)` AND different fingerprint AND old row is `PROMOTED` | `REJECTED` with reason `CANNOT_SUPERSEDE_PROMOTED: …; use the /users update endpoints, not re-import` | ✗ |
 | Same mobile twice in the SAME upload (within-CSV dup) | First instance follows above rules; subsequent instances `REJECTED` with reason `DUPLICATE: same mobile appears earlier in this CSV` | ✓ for first only |
 
@@ -202,6 +312,69 @@ to `POST /verify/otp/send` returns `400 INVITE_SUPERSEDED` with message *"This
 invitation was replaced by a newer one — check your inbox for a more recent
 email"*. Frontend should display this message verbatim — it tells the user to
 look for a more recent email.
+
+### PUT `/bulk/{idOrJobNumber}/rows/{rowId}`  (BULK_UPLOAD)
+
+Edit a row before invites have been dispatched. Allowed only when the row's
+status is `DRAFT`. All body fields are optional (null = leave unchanged):
+
+```json
+{
+  "email": "alice@example.com",
+  "mobile": "9876543210",
+  "name": "Alice",
+  "dob": "1990-01-15",
+  "gender": "F",
+  "pincode": "560001",
+  "city": "Bengaluru",
+  "state": "Karnataka",
+  "panNumber": "ABCDE1234F",
+  "aadhaarLast4": "1234",
+  "employeeId": "EMP-001"
+}
+```
+
+Validation: same per-field rules as the CSV (email format, 10-digit Indian mobile,
+6-digit pincode, PAN format, 4-digit aadhaar4, etc.).
+
+**Errors:**
+- `400 INVALID_ROW_STATE` — row is not in DRAFT (re-upload + cancel old row instead)
+- `400 DUPLICATE_MOBILE` — the new mobile collides with another active row in the same org
+- `404 BULK_ROW_NOT_FOUND` — row not in this job/org
+
+### POST `/bulk/{idOrJobNumber}/rows/{rowId}/cancel`  (BULK_UPLOAD)
+
+Cancel a single row pre-promotion. No body. Allowed from any of `DRAFT`, `STAGED`,
+`OTP_SENT`, `VERIFIED`, `INVITE_FAILED`, `EXPIRED`. Sets status to `CANCELLED`
+and invalidates any outstanding OTP.
+
+For already-`PROMOTED` rows: use `PUT /users/{id}/status` to suspend the consumer
+profile instead — this endpoint returns 400 `INVALID_ROW_STATE`.
+
+**Use case:** admin re-uploads a CSV with corrected data (which `SUPERSEDES` the
+old row), then cancels the old row to ensure the recipient's old email link
+returns `INVITE_CANCELLED` rather than letting them silently OTP into outdated data.
+
+### POST `/bulk/{idOrJobNumber}/cancel`  (BULK_UPLOAD)
+
+Cancel an entire job. No body. Flips every non-PROMOTED row in the job to
+`CANCELLED` and marks the job `CANCELLED`. Idempotent-safe to surface as a
+"Discard this upload" destructive action — frontend should confirm with a modal.
+
+**Errors:**
+- `400 INVALID_JOB_STATE` — job already CANCELLED, or in FAILED state
+
+### POST `/bulk/{idOrJobNumber}/dispatch`  (BULK_UPLOAD)
+
+Send invitation emails to every row currently in `DRAFT`. Flips successful sends
+to `STAGED`, failed sends to `INVITE_FAILED` (with the SMTP error captured in
+`inviteLastError` — operator can retry per-row via `/resend-invite`).
+
+Idempotent — a second call only touches rows still in `DRAFT`. Returns the
+refreshed job response (with updated `rowStats` reflecting the dispatch outcome).
+
+**Errors:**
+- `400 INVALID_JOB_STATE` — job not in `COMPLETED` state (e.g. still PROCESSING, or already CANCELLED)
 
 ### POST `/bulk/{idOrJobNumber}/rows/{rowId}/resend-invite`  (BULK_UPLOAD)
 
@@ -418,8 +591,12 @@ In addition to standard ones (`UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`):
 |---|---|---|
 | `BULK_INVALID_FILE` | POST /bulk/upload | File rejected (extension, type, size, magic bytes, no header) |
 | `BULK_JOB_NOT_FOUND` | GET /bulk/{id} | Job not in this org |
-| `BULK_ROW_NOT_FOUND` | resend-invite | Row not in this job/org |
-| `INVALID_ROW_STATE` | resend-invite | Row in PROMOTED/REJECTED/EXPIRED — can't resend |
+| `BULK_ROW_NOT_FOUND` | resend-invite, edit, cancel-row | Row not in this job/org |
+| `INVALID_ROW_STATE` | resend-invite, edit, cancel-row | Row not in a valid state for the operation |
+| `INVALID_JOB_STATE` | dispatch, cancel-job | Job not in a valid state for the operation |
+| `DUPLICATE_MOBILE` | edit | Mobile change collides with another active row in the same org |
+| `INVITE_CANCELLED` | /verify/* | Recipient hit a token for a row the admin cancelled |
+| `INVITE_NOT_DISPATCHED` | /verify/* | Recipient has a token for a row still in DRAFT (shouldn't normally happen) |
 | `INVALID_TOKEN` | /verify/* | HMAC mismatch, malformed, or unknown |
 | `INVALID_OTP` | /verify/otp/confirm | Wrong code or no active code |
 | `OTP_EXPIRED` | /verify/otp/confirm | Code expired (default 10 min) |
@@ -440,6 +617,10 @@ New `cms_audit_logs` action types you may see in `GET /audit`:
 |---|---|---|---|---|
 | `BULK_UPLOAD_CREATED` | `BulkUpload` | Job submitted | uploading cms_user | `{id, jobNumber, fileName, fileSize, storageKey, uploadedByEmail}` |
 | `BULK_UPLOAD_COMPLETED` | `BulkUpload` | Job finished parse | same | `{status, totalRows, parsedRows, invalidRows}` |
+| `BULK_INVITES_DISPATCHED` | `BulkUpload` | POST /bulk/{id}/dispatch | the cms_user calling | `{jobId, jobNumber, status, dispatched, failed, totalDraftRows}` |
+| `BULK_JOB_CANCELLED` | `BulkUpload` | POST /bulk/{id}/cancel | the cms_user calling | `{jobId, jobNumber, status, cancelledRows}` |
+| `BULK_ROW_EDITED` | `BulkUploadRow` | PUT /bulk/.../rows/{rowId} | the cms_user calling | `{rowId, jobId, rowNumber, status}` |
+| `BULK_ROW_CANCELLED` | `BulkUploadRow` | POST /bulk/.../rows/{rowId}/cancel | the cms_user calling | `{rowId, jobId, rowNumber, status}` |
 | `STATUS_CHANGE` | `UserProfile` | PUT /users/{id}/status | the cms_user calling the API | `{status, reason}` + `diff: {status: [old, new]}` |
 
 **Promotion is intentionally NOT audited per-row** — that would produce 10k audit
@@ -526,3 +707,4 @@ If anything is unclear, the backend is the canonical source:
   - `bulkupload/BulkUploadController.java` (admin /bulk/*)
   - `bulkupload/verify/VerificationController.java` (public /verify/*)
   - `consumeruser/ConsumerUserController.java` (admin /users/*)
+

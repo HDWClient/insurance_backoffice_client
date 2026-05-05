@@ -1,3 +1,19 @@
+## 2026-05-05 — code-review (staged)
+
+### [Medium] Fragment without key in rows.map()
+- **File**: `src/components/SuperAdminDashboard/index.jsx` (BulkModuleTab rows render)
+- **Issue**: `<>` shorthand fragments can't carry a `key` prop; React will log "Each child in a list should have a unique key" warnings in the console
+- **Suggested fix**: Replace `<>` with `<React.Fragment key={row.id}>`
+- **Status**: Open
+
+### [Low] handleCancelRow silently swallows errors
+- **File**: `src/components/SuperAdminDashboard/index.jsx` (handleCancelRow)
+- **Issue**: `catch { /* row stays as-is */ }` gives the user no feedback when a row cancel fails
+- **Suggested fix**: Add per-row error state similar to `resendStatus`, show inline error on failure
+- **Status**: Open
+
+---
+
 ## 2026-05-04 — code-review (staged): playwright tests + vite base + deploy command
 
 ### [Medium] Generated test artifacts committed to source control

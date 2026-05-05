@@ -1223,17 +1223,18 @@ function RoleModuleTab({ actions, can }) {
 /* ─────────────────────────────────────────────────────────── */
 /*  BULK module tab — CSV upload + job management (Operations) */
 /* ─────────────────────────────────────────────────────────── */
-const ROW_STATUSES = ["STAGED","OTP_SENT","VERIFIED","PROMOTED","REJECTED","EXPIRED","INVITE_FAILED","SUPERSEDED"];
+const ROW_STATUSES = ["DRAFT","STAGED","OTP_SENT","VERIFIED","PROMOTED","REJECTED","EXPIRED","INVITE_FAILED","SUPERSEDED","CANCELLED"];
 
 function jobStatusClass(status) {
-  return { PENDING: "badge--pending", PROCESSING: "badge--processing", COMPLETED: "badge--completed", FAILED: "badge--failed" }[status] ?? "badge--system";
+  return { PENDING: "badge--pending", PROCESSING: "badge--processing", COMPLETED: "badge--completed", FAILED: "badge--failed", CANCELLED: "badge--cancelled" }[status] ?? "badge--system";
 }
 
 function rowStatusClass(status) {
   return {
-    STAGED: "badge--staged", OTP_SENT: "badge--otp-sent", VERIFIED: "badge--verified",
-    PROMOTED: "badge--promoted", REJECTED: "badge--rejected", EXPIRED: "badge--expired",
-    INVITE_FAILED: "badge--invite-failed", SUPERSEDED: "badge--superseded",
+    DRAFT: "badge--draft", STAGED: "badge--staged", OTP_SENT: "badge--otp-sent",
+    VERIFIED: "badge--verified", PROMOTED: "badge--promoted", REJECTED: "badge--rejected",
+    EXPIRED: "badge--expired", INVITE_FAILED: "badge--invite-failed",
+    SUPERSEDED: "badge--superseded", CANCELLED: "badge--cancelled",
   }[status] ?? "badge--system";
 }
 
@@ -1255,6 +1256,7 @@ function BulkModuleTab({ actions }) {
   const [detailLoading, setDetailLoading]   = useState(false);
   const [rows, setRows]                     = useState([]);
   const [rowsLoading, setRowsLoading]       = useState(false);
+  const [rowsError, setRowsError]           = useState(null);
   const [rowFilter, setRowFilter]           = useState("STAGED");
   const [rowPage, setRowPage]               = useState(0);
   const [rowTotalPages, setRowTotalPages]   = useState(1);
@@ -1263,6 +1265,17 @@ function BulkModuleTab({ actions }) {
   const [showParseErrors, setShowParseErrors] = useState(false);
   const [resending, setResending]           = useState({});
   const [resendStatus, setResendStatus]     = useState({});
+  const [rowSearch, setRowSearch]           = useState("");
+  const [dispatching, setDispatching]       = useState(false);
+  const [dispatchErr, setDispatchErr]       = useState(null);
+  const [cancelJobConfirm, setCancelJobConfirm] = useState(false);
+  const [cancellingJob, setCancellingJob]   = useState(false);
+  const [cancelJobErr, setCancelJobErr]     = useState(null);
+  const [cancellingRow, setCancellingRow]   = useState({});
+  const [editingRow, setEditingRow]         = useState(null);
+  const [editState, setEditState]           = useState({});
+  const [editSaving, setEditSaving]         = useState(false);
+  const [editErr, setEditErr]               = useState(null);
 
   const loadJobs = useCallback(async () => {
     if (!canRead) return;
@@ -1295,14 +1308,16 @@ function BulkModuleTab({ actions }) {
     return () => clearInterval(id);
   }, [jobs, detailJob, loadJobs]);
 
-  const loadRows = useCallback(async (jobId, status, pg) => {
+  const loadRows = useCallback(async (jobId, status, pg, search = "") => {
     setRowsLoading(true);
+    setRowsError(null);
     try {
-      const data = await bulkService.getJobRows(jobId, { status, page: pg, size: 20 });
+      const data = await bulkService.getJobRows(jobId, { status, page: pg, size: 20, search: search || undefined });
       setRows(data.items ?? []);
       setRowTotalPages(data.totalPages ?? 1);
-    } catch {
+    } catch (err) {
       setRows([]);
+      setRowsError(err?.response?.data?.errorCode ?? "FETCH_FAILED");
     } finally {
       setRowsLoading(false);
     }
@@ -1310,7 +1325,7 @@ function BulkModuleTab({ actions }) {
 
   useEffect(() => {
     if (!detailJob) return;
-    loadRows(detailJob.id, rowFilter, rowPage);
+    loadRows(detailJob.id, rowFilter, rowPage, rowSearch);
   }, [detailJob?.id, rowFilter, rowPage, loadRows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1371,12 +1386,20 @@ function BulkModuleTab({ actions }) {
   const openDetail = async (job) => {
     setDetailJob(job);
     setDetailLoading(true);
-    setRows([]); setRowPage(0); setRowFilter("STAGED");
+    setRows([]); setRowsError(null); setRowPage(0); setRowFilter("STAGED"); setRowSearch("");
     setParseErrors(null); setShowParseErrors(false);
     setResending({}); setResendStatus({});
+    setDispatching(false); setDispatchErr(null);
+    setCancelJobConfirm(false); setCancelJobErr(null);
+    setEditingRow(null); setEditState({});
     try {
       const full = await bulkService.getJob(job.id);
       setDetailJob(full);
+      // Pick the first status that has rows, so we don't request a status
+      // the backend may not support (e.g. DRAFT before it's deployed).
+      const stats = full.rowStats ?? {};
+      const best = ROW_STATUSES.find(s => (stats[s] ?? 0) > 0) ?? "STAGED";
+      setRowFilter(best);
     } catch { /* keep partial data on error */ } finally {
       setDetailLoading(false);
     }
@@ -1401,11 +1424,70 @@ function BulkModuleTab({ actions }) {
     try {
       await bulkService.resendInvite(detailJob.id, rowId);
       setResendStatus(p => ({ ...p, [rowId]: "ok" }));
-      loadRows(detailJob.id, rowFilter, rowPage);
+      loadRows(detailJob.id, rowFilter, rowPage, rowSearch);
     } catch (err) {
       setResendStatus(p => ({ ...p, [rowId]: err?.response?.data?.errorCode ?? "FAILED" }));
     } finally {
       setResending(p => ({ ...p, [rowId]: false }));
+    }
+  };
+
+  const handleDispatch = async () => {
+    if (!detailJob) return;
+    setDispatching(true); setDispatchErr(null);
+    try {
+      const updated = await bulkService.dispatchJob(detailJob.id);
+      setDetailJob(updated);
+      setRowPage(0);
+      loadRows(updated.id, "STAGED", 0, "");
+      setRowFilter("STAGED"); setRowSearch("");
+    } catch (err) {
+      setDispatchErr(err?.response?.data?.errorCode ?? "DISPATCH_FAILED");
+    } finally {
+      setDispatching(false);
+    }
+  };
+
+  const handleCancelJob = async () => {
+    if (!detailJob) return;
+    setCancellingJob(true); setCancelJobErr(null);
+    try {
+      await bulkService.cancelJob(detailJob.id);
+      const updated = await bulkService.getJob(detailJob.id);
+      setDetailJob(updated);
+      setCancelJobConfirm(false);
+      loadRows(updated.id, rowFilter, rowPage, rowSearch);
+    } catch (err) {
+      setCancelJobErr(err?.response?.data?.errorCode ?? "CANCEL_FAILED");
+    } finally {
+      setCancellingJob(false);
+    }
+  };
+
+  const handleCancelRow = async (rowId) => {
+    if (!detailJob) return;
+    setCancellingRow(p => ({ ...p, [rowId]: true }));
+    try {
+      await bulkService.cancelRow(detailJob.id, rowId);
+      const updated = await bulkService.getJob(detailJob.id);
+      setDetailJob(updated);
+      loadRows(detailJob.id, rowFilter, rowPage, rowSearch);
+    } catch { /* row stays as-is on error */ } finally {
+      setCancellingRow(p => ({ ...p, [rowId]: false }));
+    }
+  };
+
+  const handleEditSave = async (rowId) => {
+    if (!detailJob) return;
+    setEditSaving(true); setEditErr(null);
+    try {
+      await bulkService.editRow(detailJob.id, rowId, editState);
+      setEditingRow(null); setEditState({});
+      loadRows(detailJob.id, rowFilter, rowPage, rowSearch);
+    } catch (err) {
+      setEditErr(err?.response?.data?.errorCode ?? "SAVE_FAILED");
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -1425,6 +1507,20 @@ function BulkModuleTab({ actions }) {
               <span className="bulk-polling-dot" title="Polling for updates…" />
             )}
           </div>
+          {canUpload && !["CANCELLED","FAILED"].includes(detailJob.status) && (
+            cancelJobConfirm ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontSize: 13, color: "#f87171" }}>Cancel all non-promoted rows?</span>
+                <button className="btn btn--danger btn--sm" onClick={handleCancelJob} disabled={cancellingJob}>
+                  {cancellingJob ? "Cancelling…" : "Yes, cancel"}
+                </button>
+                <button className="btn btn--ghost btn--sm" onClick={() => { setCancelJobConfirm(false); setCancelJobErr(null); }}>No</button>
+                {cancelJobErr && <span style={{ fontSize: 11, color: "#f87171" }}>{cancelJobErr}</span>}
+              </div>
+            ) : (
+              <button className="btn btn--danger btn--sm" onClick={() => setCancelJobConfirm(true)}>Cancel Job</button>
+            )
+          )}
         </div>
 
         <div className="card">
@@ -1451,10 +1547,35 @@ function BulkModuleTab({ actions }) {
           </div>
         </div>
 
+        {detailJob.status === "COMPLETED" && (stats.DRAFT ?? 0) > 0 && (
+          <div className="bulk-dispatch-banner">
+            <div>
+              <strong>{stats.DRAFT} draft row{stats.DRAFT !== 1 ? "s" : ""}</strong> awaiting review — send invites to let members verify their accounts.
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {dispatchErr && <span style={{ fontSize: 12, color: "#f87171" }}>{dispatchErr}</span>}
+              <button className="btn btn--primary btn--sm" onClick={handleDispatch} disabled={dispatching}>
+                {dispatching ? "Sending…" : "Send Invites"}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <div className="card__header">
             <h2 className="card__title">Rows</h2>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                className="bulk-search-input"
+                placeholder="Search mobile, row#, city…"
+                value={rowSearch}
+                onChange={(e) => {
+                  const q = e.target.value;
+                  setRowSearch(q);
+                  setRowPage(0);
+                  loadRows(detailJob.id, rowFilter, 0, q);
+                }}
+              />
               {ROW_STATUSES.map((s) => (
                 <button
                   key={s}
@@ -1470,6 +1591,15 @@ function BulkModuleTab({ actions }) {
 
           {rowsLoading && rows.length === 0 ? (
             <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+          ) : rowsError ? (
+            <div className="empty-state">
+              <div className="empty-state__icon">⚠</div>
+              <p className="empty-state__text">
+                {rowsError === "INTERNAL_ERROR"
+                  ? `The "${rowFilter}" status filter is not yet supported by the backend. Try a different status.`
+                  : `Failed to load rows (${rowsError}).`}
+              </p>
+            </div>
           ) : rows.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state__icon">📭</div>
@@ -1487,45 +1617,97 @@ function BulkModuleTab({ actions }) {
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const isResending = resending[row.id];
-                    const rStatus     = resendStatus[row.id];
-                    const terminal    = ["PROMOTED","REJECTED","EXPIRED"].includes(row.status);
+                    const isResending   = resending[row.id];
+                    const rStatus       = resendStatus[row.id];
+                    const isCancelling  = cancellingRow[row.id];
+                    const isEditingThis = editingRow === row.id;
+                    const terminal      = ["PROMOTED","REJECTED","SUPERSEDED","CANCELLED"].includes(row.status);
+                    const isDraft       = row.status === "DRAFT";
+                    const canResend     = ["STAGED","OTP_SENT","INVITE_FAILED","EXPIRED"].includes(row.status);
+                    const canCancel     = !terminal;
                     return (
-                      <tr key={row.id}>
-                        <td className="tbl__muted">{row.rowNumber}</td>
-                        <td><span className="tbl__bold">{row.name || "—"}</span></td>
-                        <td className="tbl__mono">{row.email || "—"}</td>
-                        <td className="tbl__mono">{row.mobile || "—"}</td>
-                        <td>
-                          <span className={`badge ${rowStatusClass(row.status)}`}>{row.status}</span>
-                          {row.rejectionReason && (
-                            <div className="tbl__muted" style={{ fontSize: 11, marginTop: 3, maxWidth: 200 }}>
-                              {row.rejectionReason}
-                            </div>
-                          )}
-                        </td>
-                        <td className="tbl__muted">
-                          {row.inviteSentCount ?? 0}×
-                          {row.inviteLastSentAt ? ` (${new Date(row.inviteLastSentAt).toLocaleDateString()})` : ""}
-                        </td>
-                        {canUpload && (
+                      <>
+                        <tr key={row.id}>
+                          <td className="tbl__muted">{row.rowNumber}</td>
+                          <td><span className="tbl__bold">{row.name || "—"}</span></td>
+                          <td className="tbl__mono">{row.email || "—"}</td>
+                          <td className="tbl__mono">{row.mobile || "—"}</td>
                           <td>
-                            {!terminal && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                                <button
-                                  className="btn btn--ghost btn--sm"
-                                  disabled={isResending}
-                                  onClick={() => handleResend(row.id)}
-                                >
-                                  {isResending ? "Sending…" : "Resend"}
-                                </button>
-                                {rStatus === "ok" && <span style={{ fontSize: 11, color: "#34d399" }}>Sent!</span>}
-                                {rStatus && rStatus !== "ok" && <span style={{ fontSize: 11, color: "#f87171" }}>{rStatus}</span>}
+                            <span className={`badge ${rowStatusClass(row.status)}`}>{row.status}</span>
+                            {row.rejectionReason && (
+                              <div className="tbl__muted" style={{ fontSize: 11, marginTop: 3, maxWidth: 200 }}>
+                                {row.rejectionReason}
                               </div>
                             )}
                           </td>
+                          <td className="tbl__muted">
+                            {row.inviteSentCount ?? 0}×
+                            {row.inviteLastSentAt ? ` (${new Date(row.inviteLastSentAt).toLocaleDateString()})` : ""}
+                          </td>
+                          {canUpload && (
+                            <td>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                {isDraft && (
+                                  <button
+                                    className="btn btn--ghost btn--sm"
+                                    onClick={() => {
+                                      setEditingRow(isEditingThis ? null : row.id);
+                                      setEditState({ email: row.email, mobile: row.mobile, name: row.name, dob: row.dob ?? "", gender: row.gender ?? "", pincode: row.pincode ?? "", city: row.city ?? "", state: row.state ?? "", panNumber: row.panNumber ?? "", aadhaarLast4: row.aadhaarLast4 ?? "", employeeId: row.employeeId ?? "" });
+                                      setEditErr(null);
+                                    }}
+                                  >
+                                    {isEditingThis ? "Close" : "Edit"}
+                                  </button>
+                                )}
+                                {canResend && (
+                                  <>
+                                    <button className="btn btn--ghost btn--sm" disabled={isResending} onClick={() => handleResend(row.id)}>
+                                      {isResending ? "Sending…" : "Resend"}
+                                    </button>
+                                    {rStatus === "ok" && <span style={{ fontSize: 11, color: "#34d399" }}>Sent!</span>}
+                                    {rStatus && rStatus !== "ok" && <span style={{ fontSize: 11, color: "#f87171" }}>{rStatus}</span>}
+                                  </>
+                                )}
+                                {canCancel && (
+                                  <button className="btn btn--danger btn--sm" disabled={isCancelling} onClick={() => handleCancelRow(row.id)}>
+                                    {isCancelling ? "…" : "Cancel"}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                        {isEditingThis && (
+                          <tr key={`${row.id}-edit`}>
+                            <td colSpan={canUpload ? 7 : 6} style={{ padding: "12px 16px", background: "rgba(99,102,241,0.06)", borderTop: "1px solid rgba(165,180,252,0.12)" }}>
+                              <div className="bulk-edit-form">
+                                {[
+                                  ["email","Email"],["mobile","Mobile"],["name","Name"],
+                                  ["dob","DOB (YYYY-MM-DD)"],["gender","Gender (M/F/O)"],["pincode","Pincode"],
+                                  ["city","City"],["state","State"],["panNumber","PAN"],
+                                  ["aadhaarLast4","Aadhaar Last 4"],["employeeId","Employee ID"],
+                                ].map(([field, label]) => (
+                                  <label key={field} className="bulk-edit-field">
+                                    <span className="bulk-edit-label">{label}</span>
+                                    <input
+                                      className="bulk-edit-input"
+                                      value={editState[field] ?? ""}
+                                      onChange={(e) => setEditState(p => ({ ...p, [field]: e.target.value }))}
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                              {editErr && <div style={{ fontSize: 12, color: "#f87171", marginTop: 8 }}>{editErr}</div>}
+                              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                                <button className="btn btn--primary btn--sm" onClick={() => handleEditSave(row.id)} disabled={editSaving}>
+                                  {editSaving ? "Saving…" : "Save"}
+                                </button>
+                                <button className="btn btn--ghost btn--sm" onClick={() => { setEditingRow(null); setEditErr(null); }}>Cancel</button>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </tr>
+                      </>
                     );
                   })}
                 </tbody>
@@ -2061,13 +2243,7 @@ function ModuleTab({ module, actions, can }) {
   if (module === "ROLE")     return <RoleModuleTab actions={actions} can={can} />;
   if (module === "BULK")     return <BulkModuleTab actions={actions} />;
   if (module === "CMS_USER") return <UserModuleTab actions={actions} can={can} />;
-  // USER module: consumer users (Plan B) only have READ/UPDATE.
-  // If CREATE or DELETE is present the backend is pre-Plan-A → render admin user tab.
-  if (module === "USER") {
-    if (actions.has("CREATE") || actions.has("DELETE"))
-      return <UserModuleTab actions={actions} can={can} />;
-    return <ConsumerUserModuleTab actions={actions} />;
-  }
+  if (module === "USER")     return <ConsumerUserModuleTab actions={actions} />;
   return <GenericModuleTab module={module} actions={actions} />;
 }
 
@@ -2182,8 +2358,8 @@ const EXCLUDED_MODULES = new Set(["MEMBER", "DEPENDENT"]);
 
 const MODULE_LABELS = {
   ORG:      "Organizations",
-  USER:     "Manage Users",   // pre-Plan-A: admin users; post-Plan-B: consumer members
-  CMS_USER: "Manage Users",   // post-Plan-A: admin users under /cms-users
+  USER:     "Consumer Users",  // consumer end-users (mobile app members) via /users
+  CMS_USER: "Manage Users",   // backoffice operators via /cms-users
   ROLE:     "Manage Roles",
   BULK:     "Operations",
   AUDIT:    "Audit Log",

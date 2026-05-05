@@ -3,7 +3,7 @@ import AxiosUtils from "../utils/AxiosUtils";
 // ── GET /me/permissions ────────────────────────────────────
 // Returns the permissions the calling user holds in the active org.
 // Normalises both formats the API may return:
-//   • string[]  → ["ROLE_MANAGE", "USER_READ", ...]
+//   • string[]  → ["ROLE_MANAGE", "CMS_USER_READ", ...]
 //   • object[]  → [{ id, code, module, action }, ...]
 // Always returns [{ code, module, action }] so the dashboard can build
 // tabs and gate UI without any extra parsing.

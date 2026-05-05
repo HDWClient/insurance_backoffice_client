@@ -9,9 +9,11 @@ const ERROR_MESSAGES = {
   OTP_LOCKED:       "Too many attempts. This invitation has been locked.",
   ALREADY_VERIFIED: "You are already verified! Nothing more to do.",
   ROW_REJECTED:     "This invitation is no longer valid.",
-  INVITE_SUPERSEDED:"This invitation was replaced by a newer one — check your inbox for a more recent email.",
-  INVALID_OTP:      "Incorrect code. Please check and try again.",
-  OTP_EXPIRED:      "Your code has expired. Please request a new one.",
+  INVITE_SUPERSEDED:     "This invitation was replaced by a newer one — check your inbox for a more recent email.",
+  INVITE_CANCELLED:      "This invitation has been cancelled by the administrator. Please contact your HR team.",
+  INVITE_NOT_DISPATCHED: "This invitation is not yet active. Please wait for your administrator to send it.",
+  INVALID_OTP:           "Incorrect code. Please check and try again.",
+  OTP_EXPIRED:           "Your code has expired. Please request a new one.",
 };
 
 function errorMessage(code, fallbackMsg) {

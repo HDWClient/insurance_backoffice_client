@@ -924,6 +924,8 @@
 .badge--expired      { background: rgba(16,21,42,0.55); color: #94a3b8; border: 1px solid rgba(165,180,252,0.18); }
 .badge--invite-failed{ background: rgba(251,146,60,0.1); color: #fb923c; }
 .badge--superseded   { background: rgba(167,139,250,0.1); color: #a78bfa; }
+.badge--draft        { background: rgba(234,179,8,0.12);  color: #facc15; border: 1px solid rgba(234,179,8,0.25); }
+.badge--cancelled    { background: rgba(16,21,42,0.55);   color: #64748b; border: 1px solid rgba(100,116,139,0.2); }
 
 /* ═══════════════════════════════════════════════════════════
    Bulk upload tab
@@ -1136,6 +1138,61 @@
   padding: 16px;
   border-top: 1px solid #e8eef6;
 }
+
+.bulk-dispatch-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  background: rgba(234,179,8,0.08);
+  border: 1px solid rgba(234,179,8,0.25);
+  border-radius: 10px;
+  font-size: 14px;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+}
+
+.bulk-search-input {
+  background: rgba(16,21,42,0.55);
+  border: 1px solid rgba(165,180,252,0.18);
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 13px;
+  padding: 4px 10px;
+  height: 28px;
+  width: 200px;
+  outline: none;
+}
+.bulk-search-input:focus { border-color: #6366f1; }
+.bulk-search-input::placeholder { color: #475569; }
+
+.bulk-edit-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 16px;
+}
+.bulk-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bulk-edit-label {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bulk-edit-input {
+  background: rgba(16,21,42,0.7);
+  border: 1px solid rgba(165,180,252,0.18);
+  border-radius: 6px;
+  color: #e2e8f0;
+  font-size: 13px;
+  padding: 5px 8px;
+  outline: none;
+}
+.bulk-edit-input:focus { border-color: #6366f1; }
 
 /* ═══════════════════════════════════════════════════════════
    Consumer user tab

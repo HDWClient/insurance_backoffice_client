@@ -24,10 +24,31 @@ export async function getJob(idOrJobNumber) {
   return res.data.data;
 }
 
-export async function getJobRows(idOrJobNumber, { status, page = 0, size = 20 } = {}) {
+export async function getJobRows(idOrJobNumber, { status, search, page = 0, size = 20 } = {}) {
   const params = { page, size };
   if (status) params.status = status;
+  if (search) params.search = search;
   const res = await AxiosUtils.get(`/bulk/${idOrJobNumber}/rows`, { params });
+  return res.data.data;
+}
+
+export async function editRow(idOrJobNumber, rowId, body) {
+  const res = await AxiosUtils.put(`/bulk/${idOrJobNumber}/rows/${rowId}`, body);
+  return res.data.data;
+}
+
+export async function cancelRow(idOrJobNumber, rowId) {
+  const res = await AxiosUtils.post(`/bulk/${idOrJobNumber}/rows/${rowId}/cancel`);
+  return res.data.data;
+}
+
+export async function cancelJob(idOrJobNumber) {
+  const res = await AxiosUtils.post(`/bulk/${idOrJobNumber}/cancel`);
+  return res.data.data;
+}
+
+export async function dispatchJob(idOrJobNumber) {
+  const res = await AxiosUtils.post(`/bulk/${idOrJobNumber}/dispatch`);
   return res.data.data;
 }
 

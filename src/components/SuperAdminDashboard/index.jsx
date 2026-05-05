@@ -2354,7 +2354,7 @@ function OrgDropdown() {
 /* ─────────────────────────────────────────────────────────── */
 /*  Dashboard shell                                            */
 /* ─────────────────────────────────────────────────────────── */
-const EXCLUDED_MODULES = new Set(["MEMBER", "DEPENDENT"]);
+const EXCLUDED_MODULES = new Set(["MEMBER", "DEPENDENT", "USER"]);
 
 const MODULE_LABELS = {
   ORG:      "Organizations",

@@ -1,3 +1,13 @@
+## 2026-05-05 — code-review (staged)
+
+### [High] Double OTP verify breaks invite/accept
+- **File**: `src/components/InviteAccept/index.jsx` — `handleCodeNext` + `handleActivate`
+- **Issue**: Step 1 calls `verifyOtp(email, otp, "INVITE")` consuming the OTP; step 2 then calls `acceptInvite(email, otp, password)` which re-verifies the same OTP — backend likely returns OTP_NOT_FOUND or OTP_INVALIDATED on the second call
+- **Suggested fix**: Remove `verifyOtp` from step 1; collect all fields in two steps then call only `acceptInvite` in step 2
+- **Status**: Open
+
+---
+
 ## 2026-05-05 — code-review (staged): clean (sentinel-only change)
 
 ---

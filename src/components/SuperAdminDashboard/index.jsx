@@ -1248,6 +1248,7 @@ function BulkModuleTab({ actions }) {
   const [uploading, setUploading]     = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [uploadSuccess, setUploadSuccess] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const fileInputRef = useRef(null);
 
   const [detailJob, setDetailJob]           = useState(null);
@@ -1333,6 +1334,7 @@ function BulkModuleTab({ actions }) {
     setSelectedFile(e.target.files?.[0] ?? null);
     setUploadError(null);
     setUploadSuccess(null);
+    setUploadProgress(null);
   };
 
   const handleUpload = async () => {
@@ -1340,8 +1342,11 @@ function BulkModuleTab({ actions }) {
     setUploading(true);
     setUploadError(null);
     setUploadSuccess(null);
+    setUploadProgress({ loaded: 0, total: selectedFile.size });
     try {
-      const job = await bulkService.uploadBulkFile(selectedFile);
+      const job = await bulkService.uploadBulkFile(selectedFile, (evt) => {
+        setUploadProgress({ loaded: evt.loaded, total: evt.total || selectedFile.size });
+      });
       setUploadSuccess(`Job #${job.jobNumber} submitted for "${job.fileName}".`);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1359,6 +1364,7 @@ function BulkModuleTab({ actions }) {
       }
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -1618,6 +1624,27 @@ function BulkModuleTab({ actions }) {
               <div className="bulk-upload-meta">
                 Required columns: <code>email</code>, <code>mobile</code>, <code>name</code> &nbsp;·&nbsp; Max 10 MB
               </div>
+              {uploading && uploadProgress && (
+                <div className="bulk-upload-progress">
+                  <div className="bulk-progress-info">
+                    <span>Uploading…</span>
+                    <span>
+                      {(uploadProgress.loaded / (1024 * 1024)).toFixed(2)} MB
+                      {" / "}
+                      {(uploadProgress.total / (1024 * 1024)).toFixed(2)} MB
+                    </span>
+                  </div>
+                  <div className="bulk-progress-track">
+                    <div
+                      className="bulk-progress-fill"
+                      style={{ width: `${Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%` }}
+                    />
+                  </div>
+                  <div className="bulk-progress-pct">
+                    {Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
                 <button
                   className="btn btn--primary btn--sm"

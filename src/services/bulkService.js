@@ -1,12 +1,13 @@
 import AxiosUtils from "../utils/AxiosUtils";
 
-export async function uploadBulkFile(file) {
+export async function uploadBulkFile(file, onUploadProgress) {
   const form = new FormData();
   form.append("file", file);
   // Setting Content-Type to undefined lets the browser auto-set
   // multipart/form-data with the correct boundary. Never set it manually.
   const res = await AxiosUtils.post("/bulk/upload", form, {
     headers: { "Content-Type": undefined },
+    onUploadProgress,
   });
   return res.data.data;
 }

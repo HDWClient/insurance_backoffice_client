@@ -1,6 +1,6 @@
 .vp-page {
   min-height: 100vh;
-  background: #0f172a;
+  background: #070e1f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9,8 +9,8 @@
 }
 
 .vp-card {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #0d1e38;
+  border: 1px solid #1c3050;
   border-radius: 20px;
   padding: 48px 40px;
   width: 100%;
@@ -30,7 +30,7 @@
   margin: 0 auto 24px;
 }
 
-.vp-icon--mail  { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+.vp-icon--mail  { background: rgba(99,102,241,0.12); color: #818cf8; border: 1px solid rgba(99,102,241,0.25); }
 .vp-icon--otp   { background: rgba(251,146,60,0.1);  color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
 .vp-icon--ok    { background: rgba(52,211,153,0.1);  color: #34d399; border: 1px solid rgba(52,211,153,0.25); }
 .vp-icon--warn  { background: rgba(239,68,68,0.1);   color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
@@ -71,8 +71,8 @@
 .vp-otp-input {
   width: 100%;
   box-sizing: border-box;
-  background: #0f172a;
-  border: 2px solid #334155;
+  background: #070e1f;
+  border: 2px solid #1c3050;
   border-radius: 12px;
   padding: 16px;
   font-size: 28px;
@@ -84,8 +84,8 @@
   transition: border-color 0.2s;
 }
 
-.vp-otp-input::placeholder { color: #334155; letter-spacing: 4px; font-size: 20px; }
-.vp-otp-input:focus { border-color: #3b82f6; }
+.vp-otp-input::placeholder { color: #1c3050; letter-spacing: 4px; font-size: 20px; }
+.vp-otp-input:focus { border-color: #6366f1; }
 
 .vp-btn {
   width: 100%;
@@ -100,11 +100,11 @@
 }
 
 .vp-btn--primary {
-  background: #2563eb;
+  background: #6366f1;
   color: #fff;
 }
 
-.vp-btn--primary:hover:not(:disabled) { background: #1d4ed8; }
+.vp-btn--primary:hover:not(:disabled) { background: #4f46e5; }
 .vp-btn--primary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .vp-link {

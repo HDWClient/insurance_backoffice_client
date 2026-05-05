@@ -1,32 +1,6 @@
-/*
- * Stitch design tokens (from tailwind.config in generated HTML)
- * ─────────────────────────────────────────────────────────────
- * primary-container:        #1a2744   ← left panel BG
- * background:               #faf8ff   ← page BG
- * primary:                  #04122e   ← headings, links
- * on-primary:               #ffffff   ← text on dark panel
- * on-background:            #0d1b37   ← body text
- * on-surface:               #0d1b37   ← input text
- * on-surface-variant:       #45464d   ← labels, muted text
- * outline:                  #75777e   ← icons
- * outline-variant:          #c5c6ce   ← borders, decoration
- * surface-container-low:    #f2f3ff   ← right panel BG
- * surface-container-lowest: #ffffff   ← input focus BG
- * surface-container-highest:#d9e2ff   ← input default BG
- * secondary-fixed:          #83fba5   ← CTA button
- * secondary-fixed-dim:      #66dd8b   ← CTA button hover
- * on-secondary-fixed:       #00210c   ← text on CTA button
- * secondary:                #006d36   ← mobile logo "i"
- * primary-fixed-dim:        #b9c6eb   ← brand panel subtitle
- * error-container:          #ffdad6   ← error BG
- * error:                    #ba1a1a   ← error border
- * on-error-container:       #93000a   ← error text
- * border-radius DEFAULT:    0.125rem (2px)
- */
-
 /* ── Root wrapper ── */
 .kl-root {
-  background: #faf8ff;
+  background: #dde8ff;
   color: #0d1b37;
   font-family: 'Inter', sans-serif;
   height: 100vh;
@@ -53,36 +27,38 @@
 
 /* ═══════════════════════════════════════════════
    LEFT PANEL — Branding & Messaging
-   hidden on mobile / flex at ≥900px, w-2/5
    ═══════════════════════════════════════════════ */
 .kl-brand {
   display: none;
   position: relative;
   overflow: hidden;
-  background: #1a2744;
   flex-direction: column;
   height: 100%;
+  background: linear-gradient(160deg, #071224 0%, #0d2145 40%, #0a1f3d 72%, #100f40 100%);
+  background-size: 200% 200%;
+  animation: kl-bg-shift 16s ease infinite;
+}
+
+@keyframes kl-bg-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 @media (min-width: 768px) {
-  .kl-brand {
-    display: flex;
-    width: 40%;
-  }
+  .kl-brand { display: flex; width: 40%; }
 }
 
-/* Gradient overlay — opacity-10 */
 .kl-brand__gradient-overlay {
   position: absolute;
   inset: 0;
-  opacity: 0.1;
+  opacity: 0.18;
   pointer-events: none;
   background-image:
-    radial-gradient(circle at 20% 30%, rgba(131, 251, 165, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(131, 251, 165, 0.10) 0%, transparent 50%);
+    radial-gradient(circle at 20% 30%, rgba(99,102,241,0.5) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(139,92,246,0.35) 0%, transparent 50%);
 }
 
-/* Logo — p-12 relative z-10 flex items-center gap-2 */
 .kl-brand__logo {
   padding: 48px;
   position: relative;
@@ -95,20 +71,19 @@
 
 .kl-brand__logo-k,
 .kl-brand__logo-nko {
-  font-size: 1.875rem;   /* text-3xl */
-  font-weight: 900;      /* font-black */
-  letter-spacing: -0.05em; /* tracking-tighter */
-  color: #ffffff;        /* text-on-primary */
+  font-size: 1.875rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: #ffffff;
 }
 
 .kl-brand__logo-i {
   font-size: 1.875rem;
   font-weight: 900;
   letter-spacing: -0.05em;
-  color: #83fba5;        /* text-secondary-fixed */
+  color: #818cf8;
 }
 
-/* Hero content — flex-grow flex flex-col justify-center px-12 pb-24 relative z-10 */
 .kl-brand__hero {
   flex: 1;
   display: flex;
@@ -121,7 +96,6 @@
   z-index: 10;
 }
 
-/* h1 — text-5xl font-bold tracking-tight text-on-primary leading-tight mb-6 */
 .kl-brand__headline {
   font-size: 3rem;
   font-weight: 700;
@@ -131,232 +105,234 @@
   margin: 0 0 24px;
 }
 
-/* p — text-lg text-primary-fixed-dim max-w-md leading-relaxed */
 .kl-brand__sub {
   font-size: 1.125rem;
-  color: #b9c6eb;
+  color: #a5b4fc;
   max-width: 28rem;
   line-height: 1.625;
   margin: 0;
 }
 
-/* Bottom fade — absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-primary/50 to-transparent */
 .kl-brand__bottom-fade {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 128px;
-  background: linear-gradient(to top, rgba(4, 18, 46, 0.5), transparent);
+  bottom: 0; left: 0;
+  width: 100%; height: 128px;
+  background: linear-gradient(to top, rgba(7,14,31,0.5), transparent);
   pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════
    RIGHT PANEL — Login Form
-   w-full md:w-3/5 h-full bg-surface-container-low
-   flex flex-col justify-center items-center
-   px-6 md:px-24 overflow-y-auto
    ═══════════════════════════════════════════════ */
 .kl-panel {
   width: 100%;
   height: 100%;
-  background: #f2f3ff;
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   padding: 0 24px;
-  overflow-y: auto;
   box-sizing: border-box;
+  background: linear-gradient(145deg, #dde8ff 0%, #ede5ff 30%, #d8eeff 60%, #e8deff 100%);
+  background-size: 300% 300%;
+  animation: kl-panel-shift 14s ease infinite;
+}
+
+@keyframes kl-panel-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.kl-panel::before {
+  content: '';
+  position: absolute;
+  width: 460px; height: 460px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99,102,241,0.3) 0%, rgba(139,92,246,0.12) 50%, transparent 70%);
+  top: -140px; right: -100px;
+  animation: kl-blob-a 15s ease-in-out infinite;
+  pointer-events: none;
+  filter: blur(42px);
+  mix-blend-mode: multiply;
+}
+
+.kl-panel::after {
+  content: '';
+  position: absolute;
+  width: 380px; height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(14,165,233,0.25) 0%, rgba(6,182,212,0.1) 50%, transparent 70%);
+  bottom: -100px; left: -80px;
+  animation: kl-blob-b 19s ease-in-out infinite;
+  pointer-events: none;
+  filter: blur(42px);
+  mix-blend-mode: multiply;
+}
+
+@keyframes kl-blob-a {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  40%       { transform: translate(-60px,70px) scale(1.08); }
+  70%       { transform: translate(40px,30px) scale(0.95); }
+}
+@keyframes kl-blob-b {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  45%       { transform: translate(65px,-45px) scale(1.1); }
+  75%       { transform: translate(-30px,55px) scale(1.05); }
 }
 
 @media (min-width: 768px) {
-  .kl-panel {
-    width: 60%;
-    padding: 0 96px;
-  }
+  .kl-panel { width: 60%; padding: 0 96px; }
 }
 
-/* Mobile logo — md:hidden flex items-center gap-2 mb-12 */
+/* Mobile logo */
 .kl-mobile-logo {
   display: flex;
   align-items: center;
   gap: 0;
   margin-bottom: 48px;
   line-height: 1;
+  position: relative;
+  z-index: 1;
 }
 
-@media (min-width: 768px) {
-  .kl-mobile-logo { display: none; }
-}
+@media (min-width: 768px) { .kl-mobile-logo { display: none; } }
 
 .kl-mobile-logo__k,
 .kl-mobile-logo__nko {
   font-size: 1.875rem;
   font-weight: 900;
   letter-spacing: -0.05em;
-  color: #04122e;     /* text-primary */
+  color: #0f172a;
 }
 
 .kl-mobile-logo__i {
   font-size: 1.875rem;
   font-weight: 900;
   letter-spacing: -0.05em;
-  color: #006d36;     /* text-secondary */
+  color: #6366f1;
 }
 
-/* Login card — w-full max-w-md */
+/* Login card — glassmorphism */
 .kl-card {
   width: 100%;
   max-width: 28rem;
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 20px;
+  padding: 40px 36px;
+  box-sizing: border-box;
+  box-shadow:
+    0 8px 40px rgba(99,102,241,0.12),
+    0 2px 12px rgba(99,102,241,0.07),
+    inset 0 1px 0 rgba(255,255,255,0.9);
 }
 
-/* Header — mb-10 text-center md:text-left */
 .kl-card__header {
-  margin-bottom: 40px;
+  margin-bottom: 32px;
   text-align: center;
 }
 
-@media (min-width: 768px) {
-  .kl-card__header { text-align: left; }
-}
+@media (min-width: 768px) { .kl-card__header { text-align: left; } }
 
-/* h2 — text-[28px] font-bold tracking-tight text-primary mb-2 */
 .kl-card__heading {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   letter-spacing: -0.025em;
-  color: #04122e;
+  color: #0f172a;
   margin: 0 0 8px;
 }
 
-/* p — text-on-surface-variant text-base */
 .kl-card__sub {
   font-size: 1rem;
-  color: #45464d;
+  color: #64748b;
   margin: 0;
 }
 
-/* ── Error banner ── */
+/* Error banner */
 .kl-error {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #ffdad6;
-  border: 1px solid #ba1a1a;
-  color: #93000a;
-  border-radius: 2px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  border-radius: 10px;
   padding: 10px 14px;
   font-size: 14px;
   line-height: 1.5;
   margin-bottom: 20px;
 }
 
-.kl-error__icon {
-  font-size: 18px;
-  flex-shrink: 0;
-}
+.kl-error__icon { font-size: 18px; flex-shrink: 0; }
 
-/* ── Form — space-y-6 ── */
-.kl-form {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
+/* Form */
+.kl-form { display: flex; flex-direction: column; gap: 24px; }
 
-/* ── Field ── */
-.kl-field {
-  display: flex;
-  flex-direction: column;
-}
+.kl-field { display: flex; flex-direction: column; }
 
-/* label — text-sm font-medium uppercase tracking-widest text-on-surface-variant mb-2 */
 .kl-field__label {
   display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #45464d;
+  letter-spacing: 0.08em;
+  color: #374151;
   margin-bottom: 8px;
 }
 
-/* input wrapper — relative */
-.kl-field__wrap {
-  position: relative;
-}
+.kl-field__wrap { position: relative; }
 
-/* icon wrapper — absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none */
 .kl-field__icon-wrap {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  padding-left: 16px;
+  top: 0; bottom: 0; left: 0;
+  padding-left: 14px;
   display: flex;
   align-items: center;
   pointer-events: none;
 }
 
-/* icon — text-outline */
-.kl-field__icon {
-  color: #75777e;
-  font-size: 20px;
-}
+.kl-field__icon { color: #94a3b8; font-size: 20px; }
 
-/*
- * input:
- * block w-full pl-12 pr-4 py-3.5
- * bg-surface-container-highest (#d9e2ff)
- * border-transparent rounded-DEFAULT (2px)
- * text-on-surface (#0d1b37)
- * focus:bg-surface-container-lowest (#fff)
- * focus:border-b-2 focus:border-b-primary (#04122e)
- * focus:ring-0 focus:outline-none
- * transition-colors
- */
 .kl-field__input {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  padding: 14px 16px 14px 48px;
-  background: #d9e2ff;
-  border: 2px solid transparent;
-  border-radius: 2px;
-  color: #0d1b37;
+  padding: 12px 16px 12px 44px;
+  background: #f5f8fc;
+  border: 1px solid #c8d6e8;
+  border-radius: 10px;
+  color: #1e293b;
   font-size: 1rem;
   font-family: 'Inter', sans-serif;
   outline: none;
-  transition: background 0.2s, border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
-.kl-field__input::placeholder {
-  color: #75777e;
-}
+.kl-field__input::placeholder { color: #94a3b8; }
 
 .kl-field__input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.14);
   background: #ffffff;
-  border-color: transparent;
-  border-bottom: 2px solid #04122e;
 }
 
-/* password input — pr-12 for eye button */
-.kl-field__input--pw {
-  padding-right: 48px;
-}
+.kl-field__input--pw { padding-right: 48px; }
 
-/* eye toggle wrapper — absolute inset-y-0 right-0 pr-4 flex items-center */
 .kl-field__eye-wrap {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  padding-right: 16px;
+  top: 0; bottom: 0; right: 0;
+  padding-right: 14px;
   display: flex;
   align-items: center;
 }
 
-/* eye button — text-outline hover:text-primary transition-colors focus:outline-none */
 .kl-field__eye {
   background: none;
   border: none;
@@ -364,39 +340,22 @@
   padding: 0;
   display: flex;
   align-items: center;
-  color: #75777e;
+  color: #94a3b8;
   transition: color 0.2s;
   outline: none;
 }
 
-.kl-field__eye:hover {
-  color: #04122e;
-}
+.kl-field__eye:hover { color: #6366f1; }
+.kl-field__eye .material-symbols-outlined { font-size: 20px; }
 
-.kl-field__eye .material-symbols-outlined {
-  font-size: 20px;
-}
+.kl-field__forgot { margin-top: 8px; text-align: right; }
 
-/* Forgot password — mt-2 text-right */
-.kl-field__forgot {
-  margin-top: 8px;
-  text-align: right;
-}
-
-/*
- * forgot link:
- * text-sm font-medium text-on-surface-variant
- * hover:text-primary transition-colors
- * underline decoration-2 decoration-outline-variant
- * hover:decoration-primary underline-offset-4
- */
 .kl-field__forgot-link {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #45464d;
+  color: #6366f1;
   text-decoration: underline;
-  text-decoration-color: #c5c6ce;
-  text-decoration-thickness: 2px;
+  text-decoration-color: transparent;
   text-underline-offset: 4px;
   transition: color 0.2s, text-decoration-color 0.2s;
   background: none;
@@ -407,105 +366,69 @@
 }
 
 .kl-field__forgot-link:hover {
-  color: #04122e;
-  text-decoration-color: #04122e;
+  color: #4f46e5;
+  text-decoration-color: #818cf8;
 }
 
-/* ── Remember me — flex items-center ── */
-.kl-remember {
-  display: flex;
-  align-items: center;
-}
+/* Remember me */
+.kl-remember { display: flex; align-items: center; }
 
-/* checkbox — h-4 w-4 rounded-DEFAULT bg-surface-container-highest border-transparent */
 .kl-remember__checkbox {
-  height: 16px;
-  width: 16px;
-  border-radius: 2px;
-  background: #d9e2ff;
-  border: 1px solid transparent;
-  accent-color: #04122e;
+  height: 16px; width: 16px;
+  border-radius: 4px;
+  accent-color: #6366f1;
   cursor: pointer;
   flex-shrink: 0;
 }
 
-/* label — ml-2 text-sm font-medium text-on-surface-variant */
 .kl-remember__label {
   margin-left: 8px;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #45464d;
+  color: #374151;
   cursor: pointer;
 }
 
-/* ── Submit wrapper — pt-4 ── */
-.kl-submit-wrap {
-  padding-top: 16px;
-}
+/* Submit */
+.kl-submit-wrap { padding-top: 8px; }
 
-/*
- * button:
- * w-full flex justify-center py-4 px-4
- * border border-transparent rounded-DEFAULT (2px)
- * shadow-sm text-base font-bold
- * text-on-secondary-fixed (#00210c)
- * bg-secondary-fixed (#83fba5)
- * hover:bg-secondary-fixed-dim (#66dd8b)
- * focus:ring-2 focus:ring-offset-2 focus:ring-secondary-fixed
- * transition-colors
- */
 .kl-submit {
   width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  padding: 14px 16px;
+  border: none;
+  border-radius: 10px;
   font-size: 1rem;
   font-weight: 700;
-  color: #00210c;
-  background: #83fba5;
+  color: #ffffff;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
   font-family: 'Inter', sans-serif;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
   outline: none;
+  letter-spacing: 0.01em;
 }
 
 .kl-submit:hover:not(:disabled) {
-  background: #66dd8b;
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(99,102,241,0.32);
 }
 
-.kl-submit:focus-visible {
-  box-shadow: 0 0 0 2px #f2f3ff, 0 0 0 4px #83fba5;
-}
+.kl-submit:focus-visible { box-shadow: 0 0 0 3px rgba(99,102,241,0.3); }
+.kl-submit:disabled { opacity: 0.55; cursor: not-allowed; }
 
-.kl-submit:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
+/* Super Admin link */
+.kl-sa-wrap { margin-top: 24px; text-align: center; }
 
-/* ── Super Admin section — mt-12 text-center md:text-left ── */
-.kl-sa-wrap {
-  margin-top: 48px;
-  text-align: center;
-}
+@media (min-width: 768px) { .kl-sa-wrap { text-align: left; } }
 
-@media (min-width: 768px) {
-  .kl-sa-wrap { text-align: left; }
-}
-
-/*
- * link:
- * text-sm font-medium text-primary
- * hover:text-primary-container transition-colors
- * inline-flex items-center gap-1
- */
 .kl-sa-link {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #04122e;
+  color: #64748b;
   background: none;
   border: none;
   cursor: pointer;
@@ -517,16 +440,7 @@
   padding: 0;
 }
 
-.kl-sa-link:hover {
-  color: #1a2744;
-}
+.kl-sa-link:hover { color: #6366f1; }
 
-/* arrow icon — text-sm group-hover:translate-x-1 transition-transform */
-.kl-sa-link__arrow {
-  font-size: 0.875rem;
-  transition: transform 0.2s;
-}
-
-.kl-sa-link:hover .kl-sa-link__arrow {
-  transform: translateX(4px);
-}
+.kl-sa-link__arrow { font-size: 0.875rem; transition: transform 0.2s; }
+.kl-sa-link:hover .kl-sa-link__arrow { transform: translateX(4px); }

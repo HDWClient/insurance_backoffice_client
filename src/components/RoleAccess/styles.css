@@ -2,7 +2,7 @@
 .ra-page {
   padding: 32px 36px 48px;
   min-height: 100vh;
-  background: #0f172a;
+  background: #070e1f;
 }
 
 /* ── Header ──────────────────────────────────────────────── */
@@ -40,8 +40,8 @@
 }
 
 .ra-search {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #0d1e38;
+  border: 1px solid #1c3050;
   border-radius: 8px;
   padding: 8px 14px;
   font-size: 13.5px;
@@ -52,12 +52,12 @@
   font-family: inherit;
 }
 
-.ra-search::placeholder { color: #475569; }
-.ra-search:focus { border-color: #3b82f6; }
+.ra-search::placeholder { color: #2a3d5a; }
+.ra-search:focus { border-color: #6366f1; }
 
 .ra-filter {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #0d1e38;
+  border: 1px solid #1c3050;
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 13.5px;
@@ -68,7 +68,7 @@
 }
 
 .ra-save-all-btn {
-  background: #2563eb;
+  background: #6366f1;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -81,12 +81,12 @@
   white-space: nowrap;
 }
 
-.ra-save-all-btn:hover { background: #1d4ed8; }
+.ra-save-all-btn:hover { background: #4f46e5; }
 
 /* ── Empty ───────────────────────────────────────────────── */
 .ra-empty {
-  background: #1e293b;
-  border: 1px dashed #334155;
+  background: #0d1e38;
+  border: 1px dashed #1c3050;
   border-radius: 16px;
   padding: 64px 24px;
   text-align: center;
@@ -101,14 +101,14 @@
   margin-bottom: 6px;
 }
 
-.ra-empty__sub { font-size: 14px; color: #475569; }
+.ra-empty__sub { font-size: 14px; color: #2a3d5a; }
 
 /* ── Table wrapper ───────────────────────────────────────── */
 .ra-table-wrap {
   overflow-x: auto;
-  border: 1px solid #334155;
+  border: 1px solid #1c3050;
   border-radius: 14px;
-  background: #1e293b;
+  background: #0d1e38;
 }
 
 /* ── Table ───────────────────────────────────────────────── */
@@ -119,7 +119,7 @@
 }
 
 /* ── Group header row ────────────────────────────────────── */
-.ra-table__group-row { background: #0f172a; }
+.ra-table__group-row { background: #070e1f; }
 
 .ra-table__user-th {
   text-align: left;
@@ -131,7 +131,7 @@
   color: #64748b;
   min-width: 200px;
   vertical-align: bottom;
-  border-right: 1px solid #1e293b;
+  border-right: 1px solid #0d1e38;
 }
 
 .ra-table__group-th {
@@ -141,9 +141,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: #475569;
-  border-bottom: 1px solid #334155;
-  border-right: 1px solid #1e293b;
+  color: #2a3d5a;
+  border-bottom: 1px solid #1c3050;
+  border-right: 1px solid #0d1e38;
 }
 
 .ra-table__actions-th {
@@ -159,13 +159,13 @@
 }
 
 /* ── Permission header row ───────────────────────────────── */
-.ra-table__perm-row { background: #0f172a; }
+.ra-table__perm-row { background: #070e1f; }
 
 .ra-table__perm-th {
   padding: 6px 4px 10px;
   min-width: 88px;
-  border-right: 1px solid #1e293b;
-  border-bottom: 2px solid #334155;
+  border-right: 1px solid #0d1e38;
+  border-bottom: 2px solid #1c3050;
 }
 
 .ra-table__perm-th-inner {
@@ -193,18 +193,18 @@
 .ra-col-check {
   width: 15px;
   height: 15px;
-  accent-color: #3b82f6;
+  accent-color: #6366f1;
   cursor: pointer;
 }
 
 /* ── Table rows ──────────────────────────────────────────── */
 .ra-table__row {
-  border-bottom: 1px solid #1a2535;
+  border-bottom: 1px solid #0a1a2e;
   transition: background 0.15s;
 }
 
 .ra-table__row:last-child { border-bottom: none; }
-.ra-table__row:hover { background: #162032; }
+.ra-table__row:hover { background: #091628; }
 
 .ra-table__row--dirty {
   border-left: 3px solid #fbbf24;
@@ -217,7 +217,7 @@
 /* ── User cell ───────────────────────────────────────────── */
 .ra-table__user-cell {
   padding: 14px 16px 14px 20px;
-  border-right: 1px solid #1e293b;
+  border-right: 1px solid #0d1e38;
 }
 
 .ra-user-info {
@@ -231,7 +231,7 @@
 .ra-row-check {
   width: 16px;
   height: 16px;
-  accent-color: #3b82f6;
+  accent-color: #6366f1;
   cursor: pointer;
 }
 
@@ -267,14 +267,14 @@
 
 .ra-user-info__org {
   font-size: 11.5px;
-  color: #475569;
+  color: #2a3d5a;
 }
 
 /* ── Permission cells ────────────────────────────────────── */
 .ra-table__perm-cell {
   text-align: center;
   padding: 0 4px;
-  border-right: 1px solid #1a2535;
+  border-right: 1px solid #0a1a2e;
   transition: background 0.15s;
 }
 
@@ -294,7 +294,7 @@
 .ra-perm-check {
   width: 17px;
   height: 17px;
-  accent-color: #3b82f6;
+  accent-color: #6366f1;
   cursor: pointer;
 }
 
@@ -303,7 +303,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #475569;
+  background: #2a3d5a;
   display: inline-block;
   flex-shrink: 0;
 }
@@ -344,22 +344,22 @@
 }
 
 .ra-row-btn--save {
-  background: #2563eb;
+  background: #6366f1;
   color: #fff;
 }
 
-.ra-row-btn--save:not(:disabled):hover { background: #1d4ed8; }
+.ra-row-btn--save:not(:disabled):hover { background: #4f46e5; }
 
 .ra-row-btn--reset {
-  background: #1e293b;
+  background: #0d1e38;
   color: #64748b;
-  border: 1px solid #334155;
+  border: 1px solid #1c3050;
   font-size: 15px;
   padding: 5px 9px;
 }
 
 .ra-row-btn--reset:hover {
-  background: #334155;
+  background: #1c3050;
   color: #94a3b8;
 }
 
@@ -391,7 +391,7 @@
   align-items: center;
   gap: 7px;
   font-size: 12px;
-  color: #475569;
+  color: #2a3d5a;
 }
 
 .ra-legend__dirty-line {

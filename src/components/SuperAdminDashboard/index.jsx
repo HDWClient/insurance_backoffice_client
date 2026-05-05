@@ -2244,13 +2244,15 @@ export default function SuperAdminDashboard() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f172a", color: "#e2e8f0", fontFamily: "inherit" }}>
+    <div className="sa-dashboard-page" style={{ color: "#e2e8f0", fontFamily: "inherit" }}>
 
       {/* Header */}
       <header style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 32px", height: 60,
-        background: "#1e293b", borderBottom: "1px solid #334155",
+        background: "rgba(22,28,55,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
+        borderBottom: "1px solid rgba(165,180,252,0.15)",
+        position: "sticky", top: 0, zIndex: 10,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img
@@ -2270,7 +2272,7 @@ export default function SuperAdminDashboard() {
           <OrgDropdown />
           <span style={{ fontSize: 13, color: "#94a3b8" }}>{currentUser?.email ?? ""}</span>
           <button onClick={handleLogout} style={{
-            background: "none", border: "1px solid #334155", color: "#94a3b8",
+            background: "none", border: "1px solid rgba(165,180,252,0.25)", color: "#94a3b8",
             borderRadius: 7, padding: "6px 14px", fontSize: 13, cursor: "pointer",
           }}>Logout</button>
         </div>
@@ -2278,12 +2280,13 @@ export default function SuperAdminDashboard() {
 
       {/* Tab bar — dynamic, one per module */}
       <div style={{
-        display: "flex", background: "#0d1424",
-        borderBottom: "2px solid #1e3a5f",
+        display: "flex", background: "rgba(16,21,42,0.6)",
+        borderBottom: "1px solid rgba(165,180,252,0.15)",
         padding: "0 32px", overflowX: "auto",
+        backdropFilter: "blur(8px)",
       }}>
         {meLoading ? (
-          <span style={{ padding: "16px 0", fontSize: 13, color: "#475569" }}>
+          <span style={{ padding: "16px 0", fontSize: 13, color: "#64748b" }}>
             Loading permissions…
           </span>
         ) : meError ? (
@@ -2291,17 +2294,17 @@ export default function SuperAdminDashboard() {
             ⚠ Failed to load permissions ({meError})
           </span>
         ) : modules.length === 0 ? (
-          <span style={{ padding: "16px 0", fontSize: 13, color: "#475569" }}>
+          <span style={{ padding: "16px 0", fontSize: 13, color: "#64748b" }}>
             No permissions assigned to your account.
           </span>
         ) : (
           modules.map((m) => (
             <button key={m} onClick={() => setActiveTab(m)}
               style={{
-                background: activeTab === m ? "#1e3a5f" : "none",
+                background: activeTab === m ? "rgba(165,180,252,0.12)" : "none",
                 border: "none",
-                borderBottom: activeTab === m ? "3px solid #3b82f6" : "3px solid transparent",
-                color: activeTab === m ? "#60a5fa" : "#94a3b8",
+                borderBottom: activeTab === m ? "3px solid #a5b4fc" : "3px solid transparent",
+                color: activeTab === m ? "#a5b4fc" : "#64748b",
                 fontWeight: activeTab === m ? 600 : 400,
                 fontSize: 14, padding: "14px 22px", cursor: "pointer",
                 display: "flex", alignItems: "center", gap: 7,

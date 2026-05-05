@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:qa": "vite --mode qa",
     "build": "vite build",
+    "build:qa": "vite build --mode qa",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:qa": "vite preview --mode qa",
     "test": "playwright test",
     "test:login": "playwright test tests/login",
     "test:report": "playwright show-report"

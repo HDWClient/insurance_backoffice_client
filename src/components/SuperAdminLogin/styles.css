@@ -1,41 +1,394 @@
+/* ── Page layout ─────────────────────────────────────────── */
 .sa-login-page {
   min-height: 100vh;
-  background: #0f172a;
+  display: flex;
+  background: #e8f0ff;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Left decorative panel
+═══════════════════════════════════════════════════════════ */
+.sa-login-panel {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  width: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(160deg, #071224 0%, #0d2145 40%, #0a1f3d 72%, #100f40 100%);
+  background-size: 200% 200%;
+  animation: sa-bg-shift 16s ease infinite;
+}
+
+@media (min-width: 860px) {
+  .sa-login-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+}
+
+@keyframes sa-bg-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Rising background particles ────────────────────────── */
+.sa-p {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  bottom: -10px;
+  pointer-events: none;
+  animation: sa-rise linear infinite;
+}
+.sa-p--1 { left:  7%; width: 3px; height: 3px; background: rgba(99,102,241,0.6);  animation-duration: 7s;   animation-delay: 0s;   }
+.sa-p--2 { left: 17%; width: 5px; height: 5px; background: rgba(14,165,233,0.5);  animation-duration: 9.5s; animation-delay: 1.4s; }
+.sa-p--3 { left: 28%; width: 3px; height: 3px; background: rgba(168,85,247,0.55); animation-duration: 6.5s; animation-delay: 2.8s; }
+.sa-p--4 { left: 42%; width: 4px; height: 4px; background: rgba(99,102,241,0.45); animation-duration: 11s;  animation-delay: 0.6s; }
+.sa-p--5 { left: 57%; width: 3px; height: 3px; background: rgba(14,165,233,0.55); animation-duration: 8s;   animation-delay: 3.5s; }
+.sa-p--6 { left: 68%; width: 5px; height: 5px; background: rgba(99,102,241,0.4);  animation-duration: 10s;  animation-delay: 1.8s; }
+.sa-p--7 { left: 79%; width: 3px; height: 3px; background: rgba(168,85,247,0.45); animation-duration: 7.5s; animation-delay: 4.2s; }
+.sa-p--8 { left: 90%; width: 4px; height: 4px; background: rgba(14,165,233,0.5);  animation-duration: 9s;   animation-delay: 2.1s; }
+
+@keyframes sa-rise {
+  0%   { transform: translateY(0) scale(1);      opacity: 0;   }
+  12%  { opacity: 0.75; }
+  85%  { opacity: 0.3;  }
+  100% { transform: translateY(-110vh) scale(0.4); opacity: 0; }
+}
+
+/* ── Panel inner layout ──────────────────────────────────── */
+.sa-login-panel__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 48px 40px;
+  width: 100%;
+  max-width: 420px;
+}
+
+/* ── Kinko logo with float + glow ────────────────────────── */
+.sa-panel-logo-wrap {
+  margin-bottom: 40px;
+  animation: sa-logo-float 4s ease-in-out infinite;
+}
+
+.sa-panel-logo {
+  height: 50px;
+  object-fit: contain;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 8px 22px;
+}
+
+@keyframes sa-logo-float {
+  0%, 100% {
+    transform: translateY(0px);
+    filter: drop-shadow(0 0 14px rgba(99,102,241,0.5)) drop-shadow(0 8px 24px rgba(0,0,0,0.4));
+  }
+  50% {
+    transform: translateY(-10px);
+    filter: drop-shadow(0 0 26px rgba(99,102,241,0.85)) drop-shadow(0 16px 32px rgba(0,0,0,0.5));
+  }
+}
+
+/* ── Shield animation scene ──────────────────────────────── */
+.sa-shield-scene {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  margin-bottom: 32px;
+}
+
+/* Pulse rings emanating from shield center */
+.sa-pulse {
+  position: absolute;
+  top: 50%; left: 50%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(99,102,241,0.55);
+  animation: sa-pulse-out 3.2s ease-out infinite;
+}
+.sa-pulse--1 { width: 88px;  height: 88px;  margin-top: -44px; margin-left: -44px; animation-delay: 0s;   }
+.sa-pulse--2 { width: 138px; height: 138px; margin-top: -69px; margin-left: -69px; animation-delay: 1.1s; }
+.sa-pulse--3 { width: 188px; height: 188px; margin-top: -94px; margin-left: -94px; animation-delay: 2.2s; }
+
+@keyframes sa-pulse-out {
+  0%   { transform: scale(0.65); opacity: 1;   }
+  100% { transform: scale(1.55); opacity: 0;   }
+}
+
+/* Orbit tracks (dashed circular paths) */
+.sa-orbit-track {
+  position: absolute;
+  top: 50%; left: 50%;
+  border-radius: 50%;
+  border: 1px dashed rgba(129,140,248,0.18);
+  animation: sa-cw linear infinite;
+}
+.sa-orbit-track--1 {
+  width: 128px; height: 128px;
+  margin-top: -64px; margin-left: -64px;
+  animation-duration: 9s;
+}
+.sa-orbit-track--2 {
+  width: 184px; height: 184px;
+  margin-top: -92px; margin-left: -92px;
+  animation-duration: 15s;
+}
+.sa-orbit-track--3 {
+  width: 244px; height: 244px;
+  margin-top: -122px; margin-left: -122px;
+  animation-duration: 22s;
+}
+
+@keyframes sa-cw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Icon pill that counter-rotates so it stays upright */
+.sa-orbit-dot {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 16px;
+  background: rgba(10, 20, 42, 0.9);
+  border: 1px solid rgba(129,140,248,0.35);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5), 0 0 8px rgba(99,102,241,0.2);
+  animation: sa-ccw linear infinite;
+}
+.sa-orbit-track--1 .sa-orbit-dot { animation-duration: 9s;  }
+.sa-orbit-track--2 .sa-orbit-dot { animation-duration: 15s; }
+.sa-orbit-track--3 .sa-orbit-dot { animation-duration: 22s; }
+
+@keyframes sa-ccw {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to   { transform: translateX(-50%) rotate(-360deg); }
 }
 
-/* ── Card ────────────────────────────────────────────────── */
-.sa-login-card {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 16px;
-  padding: 40px 40px 36px;
+/* Central shield — pulses and glows */
+.sa-shield-main {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 84px;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  animation: sa-shield-breathe 4s ease-in-out infinite;
+}
+
+@keyframes sa-shield-breathe {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    filter: drop-shadow(0 0 16px rgba(99,102,241,0.55)) drop-shadow(0 0 40px rgba(99,102,241,0.2));
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.07);
+    filter: drop-shadow(0 0 28px rgba(99,102,241,0.9)) drop-shadow(0 0 60px rgba(99,102,241,0.35));
+  }
+}
+
+/* ── Panel text ──────────────────────────────────────────── */
+.sa-login-panel__heading {
+  font-size: 36px;
+  font-weight: 800;
+  color: #f1f5f9;
+  line-height: 1.2;
+  margin-bottom: 14px;
+  letter-spacing: -0.025em;
+}
+
+.sa-login-panel__tagline {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.8;
+  max-width: 300px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Right form panel
+═══════════════════════════════════════════════════════════ */
+.sa-login-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  position: relative;
+  overflow: hidden;
   width: 100%;
-  max-width: 420px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+  min-height: 100vh;
+  background: linear-gradient(145deg, #dde8ff 0%, #ede5ff 30%, #d8eeff 60%, #e8deff 100%);
+  background-size: 300% 300%;
+  animation: sa-panel-shift 12s ease infinite;
+}
+
+@keyframes sa-panel-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Animated background blobs ───────────────────────────── */
+.sa-fp-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(55px);
+  mix-blend-mode: multiply;
+}
+
+.sa-fp-blob--1 {
+  width: 480px; height: 480px;
+  background: radial-gradient(circle, rgba(99,102,241,0.55), rgba(139,92,246,0.3) 50%, transparent 72%);
+  top: -140px; right: -100px;
+  animation: sa-fp-drift-1 14s ease-in-out infinite;
+}
+
+.sa-fp-blob--2 {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, rgba(14,165,233,0.5), rgba(6,182,212,0.25) 50%, transparent 72%);
+  bottom: -110px; left: -80px;
+  animation: sa-fp-drift-2 18s ease-in-out infinite;
+}
+
+.sa-fp-blob--3 {
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, rgba(244,63,94,0.38), rgba(251,113,133,0.18) 50%, transparent 72%);
+  top: 35%; left: -60px;
+  animation: sa-fp-drift-3 11s ease-in-out infinite;
+}
+
+.sa-fp-blob--4 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(16,185,129,0.38), rgba(52,211,153,0.18) 50%, transparent 72%);
+  bottom: 25%; right: -60px;
+  animation: sa-fp-drift-4 16s ease-in-out infinite;
+}
+
+@keyframes sa-fp-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-60px, 80px) scale(1.1); }
+  66%       { transform: translate(40px, 30px) scale(0.93); }
+}
+@keyframes sa-fp-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%       { transform: translate(70px, -55px) scale(1.08); }
+  70%       { transform: translate(-35px, 50px) scale(1.12); }
+}
+@keyframes sa-fp-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(80px, -40px) scale(1.1); }
+}
+@keyframes sa-fp-drift-4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  45%       { transform: translate(-60px, 50px) scale(1.06); }
+  80%       { transform: translate(30px, -30px) scale(0.95); }
+}
+
+@media (min-width: 860px) {
+  .sa-login-form-panel {
+    width: 50%;
+    flex-shrink: 0;
+    min-height: 100vh;
+  }
+}
+
+/* ── Animated shield inside card ─────────────────────────── */
+.sa-card-shield-wrap {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sa-card-pulse {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid rgba(99,102,241,0.45);
+  animation: sa-card-pulse-out 2.6s ease-out infinite;
+}
+.sa-card-pulse--1 { width: 62px;  height: 62px;  animation-delay: 0s;   }
+.sa-card-pulse--2 { width: 90px;  height: 90px;  animation-delay: 0.9s; }
+
+@keyframes sa-card-pulse-out {
+  0%   { transform: scale(0.75); opacity: 1;  }
+  100% { transform: scale(1.6);  opacity: 0;  }
+}
+
+.sa-card-shield-svg {
+  width: 50px;
+  height: 56px;
+  position: relative;
+  z-index: 1;
+  animation: sa-card-shield-breathe 3.5s ease-in-out infinite;
+}
+
+@keyframes sa-card-shield-breathe {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+    filter: drop-shadow(0 4px 12px rgba(99,102,241,0.45));
+  }
+  50% {
+    transform: scale(1.07) translateY(-3px);
+    filter: drop-shadow(0 8px 22px rgba(99,102,241,0.75));
+  }
+}
+
+/* ── Card — glassmorphism ────────────────────────────────── */
+.sa-login-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 24px;
+  padding: 44px 40px 40px;
+  width: 420px;
+  max-width: 100%;
+  box-shadow:
+    0 8px 40px rgba(99, 102, 241, 0.12),
+    0 2px 12px rgba(99, 102, 241, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  animation: sa-card-in 0.5s ease both;
+}
+
+@keyframes sa-card-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .sa-login-card__top {
   display: flex;
   justify-content: center;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
 }
 
 .sa-login-card__logo {
-  height: 52px;
+  height: 48px;
   object-fit: contain;
-  background: #f1f5f9;
+  background: #eef2fb;
+  border: 1px solid #dde6f2;
   border-radius: 10px;
   padding: 8px 20px;
 }
 
 .sa-login-card__title {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
-  color: #f1f5f9;
+  color: #0f172a;
   margin-bottom: 6px;
 }
 
@@ -45,12 +398,12 @@
   margin-bottom: 28px;
 }
 
-/* ── Error ───────────────────────────────────────────────── */
+/* ── Error banner ────────────────────────────────────────── */
 .sa-login-card__error {
-  background: #450a0a;
-  border: 1px solid #7f1d1d;
-  color: #fca5a5;
-  border-radius: 8px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  border-radius: 10px;
   padding: 10px 14px;
   font-size: 13.5px;
   display: flex;
@@ -73,9 +426,10 @@
 }
 
 .sa-login-form__label {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
-  color: #cbd5e1;
+  color: #374151;
+  letter-spacing: 0.02em;
 }
 
 .sa-login-form__input-wrap {
@@ -85,23 +439,23 @@
 .sa-login-form__input {
   width: 100%;
   box-sizing: border-box;
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 8px;
+  background: #f5f8fc;
+  border: 1px solid #c8d6e8;
+  border-radius: 10px;
   padding: 11px 14px;
   font-size: 14px;
-  color: #e2e8f0;
+  color: #1e293b;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .sa-login-form__input::placeholder {
-  color: #475569;
+  color: #94a3b8;
 }
 
 .sa-login-form__input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.14);
 }
 
 .sa-login-form__input-wrap .sa-login-form__input {
@@ -119,29 +473,35 @@
   font-size: 16px;
   padding: 4px;
   line-height: 1;
-  opacity: 0.6;
+  opacity: 0.5;
   transition: opacity 0.2s;
 }
 
-.sa-login-form__eye:hover {
-  opacity: 1;
-}
+.sa-login-form__eye:hover { opacity: 1; }
 
 .sa-login-form__submit {
-  margin-top: 6px;
-  background: #2563eb;
+  margin-top: 8px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 13px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  letter-spacing: 0.01em;
 }
 
-.sa-login-form__submit:hover {
-  background: #1d4ed8;
+.sa-login-form__submit:hover:not(:disabled) {
+  background: linear-gradient(135deg, #818cf8, #6366f1);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(99,102,241,0.32);
+}
+
+.sa-login-form__submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .sa-login-card__back {
@@ -151,18 +511,18 @@
   background: none;
   border: none;
   font-size: 13px;
-  color: #475569;
+  color: #94a3b8;
   cursor: pointer;
   margin-top: 20px;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: color 0.2s, background 0.2s;
   font-family: inherit;
 }
 
 .sa-login-card__back:hover {
-  color: #94a3b8;
-  background: #0f172a;
+  color: #475569;
+  background: #f1f5f9;
 }
 
 /* ── Org picker ──────────────────────────────────────────── */
@@ -180,8 +540,8 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: #f5f8fc;
+  border: 1px solid #c8d6e8;
   border-radius: 10px;
   cursor: pointer;
   text-align: left;
@@ -191,54 +551,49 @@
 }
 
 .sa-org-picker__item:hover {
-  border-color: #475569;
-  background: #162032;
+  border-color: #a5b4fc;
+  background: #eef2fb;
 }
 
 .sa-org-picker__item--active {
-  border-color: #3b82f6;
-  background: #1e3a5f;
+  border-color: #6366f1;
+  background: #eef2ff;
 }
 
 .sa-org-picker__name {
   font-size: 14px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: #1e293b;
   flex: 1;
 }
 
-.sa-org-picker__item--active .sa-org-picker__name {
-  color: #93c5fd;
-}
+.sa-org-picker__item--active .sa-org-picker__name { color: #4f46e5; }
 
 .sa-org-picker__slug {
   font-size: 11.5px;
   font-family: monospace;
-  color: #475569;
+  color: #94a3b8;
 }
 
 .sa-org-picker__check {
   font-size: 14px;
   font-weight: 700;
-  color: #3b82f6;
+  color: #6366f1;
 }
 
 /* ── Forgot password ─────────────────────────────────────── */
-
-/* Label row: "Password" on left, "Forgot password?" on right */
 .sa-login-form__label-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-/* Inline "Forgot password?" trigger */
 .sa-fp-trigger {
   background: none;
   border: none;
   font-size: 12px;
   font-weight: 500;
-  color: #3b82f6;
+  color: #6366f1;
   cursor: pointer;
   padding: 0;
   font-family: inherit;
@@ -249,23 +604,19 @@
 }
 
 .sa-fp-trigger:hover {
-  color: #60a5fa;
-  text-decoration-color: #60a5fa;
+  color: #818cf8;
+  text-decoration-color: #818cf8;
 }
 
-/* Description text on forgot-password steps */
 .sa-fp-desc {
   font-size: 13.5px;
   color: #64748b;
   margin-bottom: 24px;
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
-.sa-fp-desc strong {
-  color: #94a3b8;
-}
+.sa-fp-desc strong { color: #374151; }
 
-/* OTP input — larger, centered, monospace */
 .sa-fp-otp-input {
   font-size: 20px;
   font-family: monospace;
@@ -274,12 +625,12 @@
   padding: 14px;
 }
 
-/* Success icon on "done" step */
 .sa-fp-success-icon {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(52, 211, 153, 0.12);
+  background: rgba(52,211,153,0.1);
+  border: 1px solid rgba(52,211,153,0.22);
   color: #34d399;
   font-size: 22px;
   font-weight: 700;
@@ -290,7 +641,5 @@
 }
 
 @media (max-width: 480px) {
-  .sa-login-card {
-    padding: 28px 20px 24px;
-  }
+  .sa-login-card { padding: 32px 24px 28px; }
 }

@@ -1,3 +1,7 @@
+## 2026-05-05 — code-review (staged): clean (sentinel-only change)
+
+---
+
 ## 2026-05-05 — code-review (staged)
 
 ### [Medium] Fragment without key in rows.map()

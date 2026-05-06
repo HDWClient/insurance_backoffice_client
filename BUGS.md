@@ -1,3 +1,13 @@
+## 2026-05-06 — code-review (staged)
+
+### [High] Test string left in production heading
+- **File**: `src/components/InviteAccept/index.jsx:108`
+- **Issue**: `"You've been invited rfgdgdgdgfdg!"` — test text left in the page title
+- **Suggested fix**: Revert to `"You've been invited!"`
+- **Status**: Accepted (user chose to keep)
+
+---
+
 ## 2026-05-06 — code-review (staged): clean [deploy cache fix]
 
 No findings. Updates git-commit deploy step to upload index.html with Cache-Control: no-cache and assets with immutable long-cache headers.

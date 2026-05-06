@@ -105,7 +105,7 @@ export default function InviteAccept() {
     <div className="ia-page">
       <div className="ia-card">
         <div className="ia-icon ia-icon--mail">✉</div>
-        <h1 className="ia-title">You've been invited!</h1>
+        <h1 className="ia-title">You've been invited rfgdgdgdgfdg!</h1>
         <p className="ia-body">
           Fill in all the details below to activate your account.
         </p>

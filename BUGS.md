@@ -1,3 +1,9 @@
+## 2026-05-06 — code-review (staged): clean [deploy cache fix]
+
+No findings. Updates git-commit deploy step to upload index.html with Cache-Control: no-cache and assets with immutable long-cache headers.
+
+---
+
 ## 2026-05-06 — code-review (staged): clean [hook fix]
 
 No findings. Moves pre-commit gate pattern from invalid `if` field to `matcher` field so the hook only fires on `git commit` commands.

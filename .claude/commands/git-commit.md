@@ -1,6 +1,6 @@
 ---
 description: Full pipeline — code-review → precommit-check → commit → deploy
-allowed-tools: Read, Edit, Write, Glob, Bash(git status:*), Bash(git diff:*), Bash(git diff --cached:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Bash(npm run build:*), Bash(npm run lint:*), Bash(aws s3 sync:*), Bash(aws cloudfront create-invalidation:*), Bash(aws sts get-caller-identity:*), Bash(mkdir:*), Bash(touch:*)
+allowed-tools: Read, Edit, Write, Glob, Bash(git status:*), Bash(git diff:*), Bash(git diff --cached:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Bash(npm run build:*), Bash(npm run lint:*), Bash(aws s3 sync:*), Bash(aws s3 cp:*), Bash(aws cloudfront create-invalidation:*), Bash(aws sts get-caller-identity:*), Bash(mkdir:*), Bash(touch:*)
 argument-hint: ""
 ---
 
@@ -164,8 +164,33 @@ npm run build
 If the build fails, show the full error and **stop**. The commit already happened — tell the user the commit succeeded but deploy failed and they should fix the build error then run `/deploy`.
 
 ### 4.4 — Sync to S3
+Upload each file type with correct cache headers:
 ```
-aws s3 sync dist/ s3://<S3_BUCKET>/<S3_FOLDER>/ --region <AWS_REGION> --delete
+# index.html — no-cache so users always get the latest
+aws s3 cp dist/index.html s3://<S3_BUCKET>/<S3_FOLDER>/index.html \
+  --content-type "text/html" \
+  --cache-control "no-cache, no-store, must-revalidate" \
+  --region <AWS_REGION>
+
+# JS bundles — immutable long-cache (hash in filename)
+aws s3 sync dist/assets/ s3://<S3_BUCKET>/<S3_FOLDER>/assets/ \
+  --exclude "*.css" --exclude "*.png" --exclude "*.svg" \
+  --content-type "application/javascript" \
+  --cache-control "max-age=31536000, immutable" \
+  --region <AWS_REGION>
+
+# CSS bundles — immutable long-cache
+aws s3 sync dist/assets/ s3://<S3_BUCKET>/<S3_FOLDER>/assets/ \
+  --exclude "*.js" --exclude "*.png" --exclude "*.svg" \
+  --content-type "text/css" \
+  --cache-control "max-age=31536000, immutable" \
+  --region <AWS_REGION>
+
+# Images, SVGs, and other static files
+aws s3 sync dist/ s3://<S3_BUCKET>/<S3_FOLDER>/ \
+  --exclude "*.html" --exclude "assets/*.js" --exclude "assets/*.css" \
+  --cache-control "max-age=31536000, immutable" \
+  --region <AWS_REGION>
 ```
 
 ### 4.5 — Invalidate CloudFront

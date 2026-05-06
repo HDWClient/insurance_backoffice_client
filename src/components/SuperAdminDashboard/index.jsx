@@ -2403,10 +2403,16 @@ export default function SuperAdminDashboard() {
   }, {});
 
   const modules = Object.keys(moduleActionMap)
-    .filter((m) => !EXCLUDED_MODULES.has(m))
+    .filter((m) => {
+      if (EXCLUDED_MODULES.has(m)) return false;
+      // Keep only the exact "AUDIT" key; drop "audit", "AUDIT_LOG", etc.
+      if (m.toUpperCase().includes("AUDIT") && m !== "AUDIT") return false;
+      return true;
+    })
     .sort((a, b) => {
-      if (a === "AUDIT" && b !== "AUDIT") return 1;
-      if (a !== "AUDIT" && b === "AUDIT") return -1;
+      const au = a.toUpperCase(), bu = b.toUpperCase();
+      if (au === "AUDIT" && bu !== "AUDIT") return 1;
+      if (au !== "AUDIT" && bu === "AUDIT") return -1;
       return a.localeCompare(b);
     });
 

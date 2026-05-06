@@ -1,3 +1,9 @@
+## 2026-05-06 — code-review (staged): clean
+
+No findings. Fixes: duplicate audit tab (API returns both "AUDIT" and "audit"), redundant fetchRoles/fetchPermissions/fetchUsers calls on tab switch, EXCLUDED_MODULES and tab-click /me/permissions refresh.
+
+---
+
 ## 2026-05-06 — code-review (staged)
 
 ### [Medium] togglePermission races fetchMyPermissions

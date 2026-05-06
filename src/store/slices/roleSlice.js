@@ -11,7 +11,10 @@ export const fetchPermissions = createAsyncThunk(
     }
   },
   {
-    condition: (_, { getState }) => !getState().roles.permissionsLoading,
+    condition: (_, { getState }) => {
+      const s = getState().roles;
+      return !s.permissionsLoading && s.permissions.length === 0;
+    },
   }
 );
 
@@ -25,7 +28,10 @@ export const fetchRoles = createAsyncThunk(
     }
   },
   {
-    condition: (_, { getState }) => !getState().roles.loading,
+    condition: (_, { getState }) => {
+      const s = getState().roles;
+      return !s.loading && s.roles.length === 0;
+    },
   }
 );
 

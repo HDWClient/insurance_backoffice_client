@@ -44,8 +44,16 @@ If the build fails, show the error and stop. Do not proceed to upload.
 Upload each file type explicitly so browsers render them correctly (not download them):
 
 ```bash
-# index.html — no-cache so users always get the latest
+# index.html — upload to both the explicit key AND the folder key (trailing slash)
+# The folder key s3://.../insurance-backoffice/ is what browsers hit when no index.html in URL
 aws s3 cp dist/index.html s3://<S3_BUCKET>/<S3_FOLDER>/index.html \
+  --content-type "text/html" \
+  --cache-control "no-cache, no-store, must-revalidate" \
+  --region <AWS_REGION>
+aws s3api put-object \
+  --bucket <S3_BUCKET> \
+  --key "<S3_FOLDER>/" \
+  --body dist/index.html \
   --content-type "text/html" \
   --cache-control "no-cache, no-store, must-revalidate" \
   --region <AWS_REGION>
@@ -64,9 +72,9 @@ aws s3 sync dist/assets/ s3://<S3_BUCKET>/<S3_FOLDER>/assets/ \
   --cache-control "max-age=31536000, immutable" \
   --region <AWS_REGION>
 
-# Images and SVGs
-aws s3 sync dist/ s3://<S3_BUCKET>/<S3_FOLDER>/ \
-  --exclude "*.html" --exclude "assets/*.js" --exclude "assets/*.css" \
+# Images, PNGs, SVGs — sync only from assets/ to avoid overwriting index.html
+aws s3 sync dist/assets/ s3://<S3_BUCKET>/<S3_FOLDER>/assets/ \
+  --exclude "*.js" --exclude "*.css" \
   --cache-control "max-age=31536000, immutable" \
   --region <AWS_REGION>
 ```

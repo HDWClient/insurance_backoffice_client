@@ -274,7 +274,7 @@
 .expand-row td { padding: 0 !important; border-bottom: 2px solid #6366f1 !important; }
 
 .expand-panel {
-  background: #dde6f2;
+  background: rgba(15,20,40,0.85);
   border-top: 1px solid #1e1b4b;
 }
 
@@ -283,7 +283,7 @@
   align-items: center;
   gap: 12px;
   padding: 16px 24px 12px;
-  border-bottom: 1px solid #f0f4ff;
+  border-bottom: 1px solid rgba(165,180,252,0.12);
 }
 
 .expand-panel__title {
@@ -326,7 +326,7 @@
   content: "";
   flex: 1;
   height: 1px;
-  background: #1e1b4b;
+  background: rgba(165,180,252,0.15);
 }
 
 .perm-grid {
@@ -353,8 +353,8 @@
 
 .perm-toggle input { cursor: pointer; accent-color: #6366f1; width: 14px; height: 14px; }
 .perm-toggle:hover { border-color: #475569; color: #cbd5e1; background: rgba(165,180,252,0.14); }
-.perm-toggle--on { background: #1e1b4b; border-color: #6366f1; color: #4f46e5; }
-.perm-toggle--on:hover { background: #4f46e5; border-color: #818cf8; }
+.perm-toggle--on { background: #1e1b4b; border-color: #6366f1; color: #a5b4fc; }
+.perm-toggle--on:hover { background: rgba(79,70,229,0.35); border-color: #818cf8; color: #e0e7ff; }
 .perm-toggle--disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
 /* ── Users panel ─────────────────────────────────────────── */

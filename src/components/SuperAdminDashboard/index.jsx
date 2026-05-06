@@ -950,19 +950,22 @@ function RoleModuleTab({ actions, can }) {
     if (!newRoleName.trim()) { setNewRoleErr("Required"); return; }
     setCreating(true);
     await dispatch(apiCreateRole(newRoleName.trim()));
+    dispatch(fetchMyPermissions());
     setNewRoleName(""); setNewRoleErr(""); setCreating(false);
   };
 
   const handleRename = async (role) => {
     if (!renaming?.value.trim() || renaming.value === role.name) { setRenaming(null); return; }
     await dispatch(apiRenameRole({ id: role.id, name: renaming.value.trim() }));
+    dispatch(fetchMyPermissions());
     setRenaming(null);
   };
 
-  const togglePermission = (role, perm) => {
+  const togglePermission = async (role, perm) => {
     const has = (role.permissions ?? []).some((p) => p.id === perm.id);
-    if (has) dispatch(removePermissionFromRole({ roleId: role.id, permId: perm.id }));
-    else     dispatch(addPermissionToRole({ roleId: role.id, permissionId: perm.id }));
+    if (has) await dispatch(removePermissionFromRole({ roleId: role.id, permId: perm.id }));
+    else     await dispatch(addPermissionToRole({ roleId: role.id, permissionId: perm.id }));
+    dispatch(fetchMyPermissions());
   };
 
   const handleDelete = async (roleId) => {
@@ -1004,6 +1007,7 @@ function RoleModuleTab({ actions, can }) {
       // Step 4 — DELETE /roles/{roleId} — now succeeds with no active assignments
       const del = await dispatch(apiDeleteRole(roleId));
       if (apiDeleteRole.fulfilled.match(del)) {
+        dispatch(fetchMyPermissions());
         if (expanded?.roleId === roleId) setExpanded(null);
         setDeleteInfo(
           userIds.length > 0
@@ -2475,7 +2479,7 @@ export default function SuperAdminDashboard() {
           </span>
         ) : (
           modules.map((m) => (
-            <button key={m} onClick={() => setActiveTab(m)}
+            <button key={m} onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
               style={{
                 background: activeTab === m ? "rgba(165,180,252,0.12)" : "none",
                 border: "none",

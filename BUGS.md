@@ -1,3 +1,13 @@
+## 2026-05-06 — code-review (staged)
+
+### [Medium] togglePermission races fetchMyPermissions
+- **File**: `src/components/SuperAdminDashboard/index.jsx:965`
+- **Issue**: `togglePermission` is synchronous — `fetchMyPermissions()` fires before the add/remove permission API call completes, so the refresh may return stale data
+- **Suggested fix**: Make `togglePermission` async and `await` the dispatch before calling `fetchMyPermissions()`
+- **Status**: Fixed
+
+---
+
 ## 2026-05-06 — code-review (staged) [SuperAdminLogin]
 
 ### [High] Test string left in login page title

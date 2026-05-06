@@ -43,7 +43,7 @@ const HARD_LOGOUT_CODES = new Set([
 
 function redirectToLogin() {
   clearActiveOrg();
-  window.location.href = "/#/admin/login";
+  window.location.href = `${import.meta.env.BASE_URL}#/admin/login`;
 }
 
 // ── Response interceptor ───────────────────────────────────

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import * as authService from "../../services/authService";
 import "./styles.css";
 
@@ -22,10 +22,11 @@ function errMsg(code, fallback) {
 }
 
 export default function InviteAccept() {
-  const navigate = useNavigate();
+  const navigate                              = useNavigate();
+  const [searchParams]                        = useSearchParams();
 
   const [done, setDone]                       = useState(false);
-  const [email, setEmail]                     = useState("");
+  const [email, setEmail]                     = useState(() => searchParams.get("email") ?? "");
   const [otp, setOtp]                         = useState("");
   const [password, setPassword]               = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,6 +35,13 @@ export default function InviteAccept() {
   const [resending, setResending]             = useState(false);
   const [resendMsg, setResendMsg]             = useState(null);
   const [error, setError]                     = useState(null);
+
+  useEffect(() => {
+    if (searchParams.get("email")) {
+      const cleanHash = window.location.hash.split("?")[0];
+      window.history.replaceState(null, "", window.location.pathname + cleanHash);
+    }
+  }, []);
 
   const allFilled =
     email.trim() &&

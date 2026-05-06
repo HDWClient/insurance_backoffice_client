@@ -1,5 +1,11 @@
 ## 2026-05-06 — code-review (staged): clean
 
+No new findings. Change adds cache-control meta tags to index.html and ignores .playwright-mcp/ artifacts. One Low note: `http-equiv` cache headers have no effect when served through CloudFront — real enforcement requires response headers at the CDN level. Harmless in practice.
+
+---
+
+## 2026-05-06 — code-review (staged): clean
+
 No new findings. This change collapses the 2-step invite flow into a single page and removes the intermediate `verifyOtp` call, also fixing the pre-existing High bug (double OTP verify).
 
 ---

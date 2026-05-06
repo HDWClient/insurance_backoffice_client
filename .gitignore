@@ -15,6 +15,9 @@ dist-ssr
 # Deployment credentials (never commit)
 .env.deploy
 
+# Playwright MCP artifacts
+.playwright-mcp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

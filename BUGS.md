@@ -1,3 +1,13 @@
+## 2026-05-06 — code-review (staged) [SuperAdminLogin]
+
+### [High] Test string left in login page title
+- **File**: `src/components/SuperAdminLogin/index.jsx:247`
+- **Issue**: Title reads "Admin Portal Test portocol" (also a typo: "portocol")
+- **Suggested fix**: Revert to `"Admin Portal"`
+- **Status**: Accepted (user chose to keep)
+
+---
+
 ## 2026-05-06 — code-review (staged)
 
 ### [High] Test string left in production heading

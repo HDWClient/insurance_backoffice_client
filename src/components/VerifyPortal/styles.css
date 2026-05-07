@@ -128,6 +128,11 @@
   border: 1px solid rgba(220,38,38,0.18);
   color: #dc2626;
 }
+.vp-step-icon--info {
+  background: rgba(14,165,233,0.08);
+  border: 1px solid rgba(14,165,233,0.2);
+  color: #0284c7;
+}
 
 /* ── Success icon ────────────────────────────────────────── */
 .vp-success-icon {
@@ -387,6 +392,144 @@
   font-size: 19px;
   font-weight: 700;
   line-height: 1.2;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Wide card (review / reject screens)
+   ═══════════════════════════════════════════════════════════ */
+.vp-card--wide {
+  max-width: 520px;
+  text-align: left;
+}
+.vp-card--wide .vp-logo-wrap { justify-content: flex-start; }
+.vp-card--wide .vp-step-icon { margin: 0 0 16px; }
+.vp-card--wide .vp-title     { font-size: 20px; }
+
+/* ═══════════════════════════════════════════════════════════
+   Countdown timer
+   ═══════════════════════════════════════════════════════════ */
+.vp-countdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #64748b;
+  background: rgba(99,102,241,0.06);
+  border: 1px solid rgba(99,102,241,0.14);
+  margin-bottom: 16px;
+}
+.vp-countdown strong { color: #4f46e5; font-variant-numeric: tabular-nums; }
+.vp-countdown--urgent  { background: rgba(220,38,38,0.06); border-color: rgba(220,38,38,0.18); color: #dc2626; }
+.vp-countdown--urgent strong { color: #dc2626; }
+.vp-countdown--expired { background: #fff5f5; border-color: #fecaca; color: #dc2626; }
+
+/* ═══════════════════════════════════════════════════════════
+   Details list (review screen)
+   ═══════════════════════════════════════════════════════════ */
+.vp-details {
+  background: #f5f8fc;
+  border: 1px solid #dde6f2;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.vp-details__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 18px;
+  border-bottom: 1px solid #eef2fb;
+}
+.vp-details__row:last-child { border-bottom: none; }
+.vp-details__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  min-width: 110px;
+}
+.vp-details__value {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Button group (2 side-by-side buttons)
+   ═══════════════════════════════════════════════════════════ */
+.vp-btn-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+.vp-btn-group .vp-btn { flex: 1; }
+
+/* ═══════════════════════════════════════════════════════════
+   Reject chips + textarea
+   ═══════════════════════════════════════════════════════════ */
+.vp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.vp-chip {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #c8d6e8;
+  background: rgba(255,255,255,0.7);
+  color: #475569;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.vp-chip:hover   { border-color: #a5b4fc; color: #374151; }
+.vp-chip--active { background: rgba(99,102,241,0.1); border-color: #6366f1; color: #4f46e5; font-weight: 600; }
+
+.vp-reject-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #c8d6e8;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #0f172a;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  line-height: 1.6;
+}
+.vp-reject-textarea::placeholder { color: #94a3b8; }
+.vp-reject-textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+
+.vp-char-count { font-size: 11px; color: #94a3b8; text-align: right; margin: 4px 0 0; }
+
+/* ── Danger button ───────────────────────────────────────── */
+.vp-btn--danger {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #fff;
+  border: none;
+}
+.vp-btn--danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(220,38,38,0.28);
+}
+
+/* ── White spinner variant (for danger button) ───────────── */
+.vp-spinner--light {
+  border-color: rgba(255,255,255,0.35);
+  border-top-color: #fff;
 }
 
 /* ═══════════════════════════════════════════════════════════

@@ -1446,7 +1446,9 @@ function BulkModuleTab({ actions }) {
       loadRows(updated.id, "STAGED", 0, "");
       setRowFilter("STAGED"); setRowSearch("");
     } catch (err) {
-      setDispatchErr(err?.response?.data?.errorCode ?? "DISPATCH_FAILED");
+      const errMsg  = err?.response?.data?.message;
+      const errCode = err?.response?.data?.errorCode;
+      setDispatchErr(errMsg ?? errCode ?? "Failed to send invites. Please try again.");
     } finally {
       setDispatching(false);
     }

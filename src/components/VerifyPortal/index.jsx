@@ -1,159 +1,235 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import * as verifyService from "../../services/verifyService";
+import kinkoLogo from "../../assets/kinkologo1.png";
 import "./styles.css";
 
-const ERROR_MESSAGES = {
-  INVALID_TOKEN:    "This verification link is invalid or has expired. Please check your email for the correct link.",
-  OTP_RATE_LIMITED: "Please wait before requesting another code.",
-  OTP_LOCKED:       "Too many attempts. This invitation has been locked.",
-  ALREADY_VERIFIED: "You are already verified! Nothing more to do.",
-  ROW_REJECTED:     "This invitation is no longer valid.",
-  INVITE_SUPERSEDED:     "This invitation was replaced by a newer one — check your inbox for a more recent email.",
-  INVITE_CANCELLED:      "This invitation has been cancelled by the administrator. Please contact your HR team.",
-  INVITE_NOT_DISPATCHED: "This invitation is not yet active. Please wait for your administrator to send it.",
-  INVALID_OTP:           "Incorrect code. Please check and try again.",
-  OTP_EXPIRED:           "Your code has expired. Please request a new one.",
+const OTP_ERROR_MAP = {
+  INVALID_OTP:           "The code you entered is incorrect. Please try again.",
+  OTP_EXPIRED:           "This code has expired. Please request a new one.",
+  OTP_LOCKED:            "Too many incorrect attempts. Please contact your administrator.",
+  INVALID_TOKEN:         "This verification link is invalid. Please use the link from your invitation email.",
+  ALREADY_VERIFIED:      "This invitation has already been verified.",
+  OTP_RATE_LIMITED:      "Please wait before requesting another code.",
 };
 
-function errorMessage(code, fallbackMsg) {
-  return ERROR_MESSAGES[code] ?? fallbackMsg ?? `Something went wrong (${code}).`;
+function getErrorText(err) {
+  const code = err?.response?.data?.error?.errorCode ?? err?.response?.data?.errorCode;
+  const msg  = err?.response?.data?.error?.message   ?? err?.response?.data?.message;
+  return OTP_ERROR_MAP[code] ?? msg ?? "Something went wrong. Please try again.";
 }
 
 export default function VerifyPortal() {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token");
+  const token = searchParams.get("token") || null;
 
-  const [step, setStep]       = useState("send");  // "send" | "otp" | "done"
-  const [otp, setOtp]         = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState(null);
-  const [alreadyEnrolled, setAlreadyEnrolled] = useState(false);
+  const [otpSent, setOtpSent]         = useState(false);   // show OTP input after send
+  const [success, setSuccess]         = useState(false);    // navigate to success screen
+  const [otp, setOtp]                 = useState("");
+  const [sendLoading, setSendLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+  const otpInputRef = useRef(null);
 
+  // ── Send OTP ────────────────────────────────────────────────
+  const handleSendOtp = async () => {
+    setSendLoading(true);
+    setVerifyError("");
+    setOtpSent(true); // show OTP field immediately, no error shown on send
+    try {
+      await verifyService.sendOtp(token);
+      setOtp("");
+      setTimeout(() => otpInputRef.current?.focus(), 80);
+    } catch {
+      // silently ignore send errors — user can still enter OTP
+    } finally {
+      setSendLoading(false);
+    }
+  };
+
+  // ── Verify OTP ──────────────────────────────────────────────
+  const handleVerifyOtp = async () => {
+    if (otp.trim().length !== 6) {
+      setVerifyError("Please enter the 6-digit code.");
+      return;
+    }
+    setVerifyLoading(true);
+    setVerifyError("");
+    try {
+      await verifyService.confirmOtp(token, otp.trim());
+      setSuccess(true);
+    } catch (err) {
+      setVerifyError(getErrorText(err));
+      setOtp("");
+      otpInputRef.current?.focus();
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  // ── No token in URL — show invalid link screen ─────────────
   if (!token) {
     return (
       <div className="vp-page">
+        <div className="vp-blob vp-blob--1" />
+        <div className="vp-blob vp-blob--2" />
+        <div className="vp-blob vp-blob--3" />
         <div className="vp-card">
-          <div className="vp-icon vp-icon--warn">!</div>
+          <div className="vp-logo-wrap">
+            <img src={kinkoLogo} alt="Kinko" className="vp-logo" />
+          </div>
+          <div className="vp-step-icon vp-step-icon--warn">⚠</div>
           <h1 className="vp-title">Invalid Link</h1>
           <p className="vp-body">
-            No verification token found. Please click the link from your invitation email.
+            This verification link is invalid or has expired. Please use the link from your invitation email.
           </p>
         </div>
       </div>
     );
   }
 
-  const handleSend = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await verifyService.sendOtp(token);
-      setStep("otp");
-    } catch (err) {
-      const code = err?.response?.data?.errorCode;
-      const msg  = err?.response?.data?.message;
-      if (code === "ALREADY_VERIFIED") {
-        setAlreadyEnrolled(true);
-        setStep("done");
-        return;
-      }
-      setError(errorMessage(code, msg));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleConfirm = async (e) => {
-    e.preventDefault();
-    if (otp.trim().length !== 6) { setError("Please enter the 6-digit code."); return; }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await verifyService.confirmOtp(token, otp.trim());
-      setAlreadyEnrolled(data?.alreadyEnrolled ?? false);
-      setStep("done");
-    } catch (err) {
-      const code = err?.response?.data?.errorCode;
-      const msg  = err?.response?.data?.message;
-      setError(errorMessage(code, msg));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (step === "done") {
+  // ══════════════════════════════════════════════════════════
+  //  SUCCESS SCREEN
+  // ══════════════════════════════════════════════════════════
+  if (success) {
     return (
       <div className="vp-page">
+        <div className="vp-blob vp-blob--1" />
+        <div className="vp-blob vp-blob--2" />
+        <div className="vp-blob vp-blob--3" />
         <div className="vp-card">
-          <div className="vp-icon vp-icon--ok">✓</div>
-          <h1 className="vp-title">
-            {alreadyEnrolled ? "Already Enrolled" : "You're verified!"}
-          </h1>
+          <div className="vp-logo-wrap">
+            <img src={kinkoLogo} alt="Kinko" className="vp-logo" />
+          </div>
+
+          <div className="vp-success-icon">✓</div>
+          <h1 className="vp-title">Verification Successful!</h1>
           <p className="vp-body">
-            {alreadyEnrolled
-              ? "You're already enrolled with this organization. Nothing more to do."
-              : "Your account has been successfully verified. You can now use the app."}
+            Your identity has been verified. You're all set to get started with Kinko.
           </p>
+
+          <div className="vp-divider" />
+
+          <p className="vp-download-heading">Download the Kinko app</p>
+          <p className="vp-download-sub">
+            Manage your insurance, track claims, and stay covered — all from your phone.
+          </p>
+
+          <div className="vp-store-buttons">
+            <a
+              href="https://play.google.com/store"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="vp-store-btn vp-store-btn--play"
+            >
+              <span className="vp-store-btn__icon">▶</span>
+              <span className="vp-store-btn__text">
+                <span className="vp-store-btn__sub">GET IT ON</span>
+                <span className="vp-store-btn__name">Google Play</span>
+              </span>
+            </a>
+            <a
+              href="https://apps.apple.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="vp-store-btn vp-store-btn--apple"
+            >
+              <span className="vp-store-btn__icon">⌘</span>
+              <span className="vp-store-btn__text">
+                <span className="vp-store-btn__sub">DOWNLOAD ON THE</span>
+                <span className="vp-store-btn__name">App Store</span>
+              </span>
+            </a>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (step === "otp") {
-    return (
-      <div className="vp-page">
-        <div className="vp-card">
-          <div className="vp-icon vp-icon--otp">✉</div>
-          <h1 className="vp-title">Enter your code</h1>
-          <p className="vp-body">
-            We sent a 6-digit code to your registered mobile number. It expires in 10 minutes.
-          </p>
-
-          {error && <div className="vp-error">{error}</div>}
-
-          <form onSubmit={handleConfirm} className="vp-form">
-            <input
-              className="vp-otp-input"
-              value={otp}
-              onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(null); }}
-              placeholder="123456"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              autoFocus
-              maxLength={6}
-            />
-            <button className="vp-btn vp-btn--primary" type="submit" disabled={loading || otp.length !== 6}>
-              {loading ? "Verifying…" : "Verify"}
-            </button>
-          </form>
-
-          <button
-            className="vp-link"
-            onClick={() => { setStep("send"); setOtp(""); setError(null); }}
-            disabled={loading}
-          >
-            ← Request a new code
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  // ══════════════════════════════════════════════════════════
+  //  MAIN SCREEN — Send OTP → OTP input → Verify OTP
+  // ══════════════════════════════════════════════════════════
   return (
     <div className="vp-page">
+      <div className="vp-blob vp-blob--1" />
+      <div className="vp-blob vp-blob--2" />
+      <div className="vp-blob vp-blob--3" />
       <div className="vp-card">
-        <div className="vp-icon vp-icon--mail">✉</div>
-        <h1 className="vp-title">Verify your account</h1>
+        <div className="vp-logo-wrap">
+          <img src={kinkoLogo} alt="Kinko" className="vp-logo" />
+        </div>
+
+        <div className="vp-step-icon vp-step-icon--shield">🔐</div>
+        <h1 className="vp-title">Verify Your Identity</h1>
         <p className="vp-body">
-          Click the button below and we'll send a one-time code to your registered mobile number.
+          {otpSent
+            ? "We've sent a 6-digit code to your registered email / mobile number. Enter it below."
+            : "To complete your enrollment, we'll send a one-time password to your registered email address or mobile number."}
         </p>
 
-        {error && <div className="vp-error">{error}</div>}
+        {/* OTP input — appears after Send OTP is clicked */}
+        {otpSent && (
+          <div className="vp-field">
+            <input
+              ref={otpInputRef}
+              className={`vp-otp-input ${verifyError ? "vp-otp-input--err" : ""}`}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="— — — — — —"
+              maxLength={6}
+              value={otp}
+              onChange={e => {
+                setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                if (verifyError) setVerifyError("");
+              }}
+            />
+            {verifyError && <p className="vp-field-error">{verifyError}</p>}
+          </div>
+        )}
 
-        <button className="vp-btn vp-btn--primary" onClick={handleSend} disabled={loading}>
-          {loading ? "Sending…" : "Send me a code"}
-        </button>
+        {/* Send OTP button — hidden once OTP is sent */}
+        {!otpSent && (
+          <button
+            type="button"
+            className="vp-btn vp-btn--primary"
+            onClick={handleSendOtp}
+            disabled={sendLoading}
+          >
+            {sendLoading
+              ? <span className="vp-btn-loading"><span className="vp-spinner" /> Sending OTP…</span>
+              : "Send OTP"}
+          </button>
+        )}
+
+        {/* Verify OTP button — shown after OTP is sent */}
+        {otpSent && (
+          <button
+            type="button"
+            className="vp-btn vp-btn--primary"
+            onClick={handleVerifyOtp}
+            disabled={verifyLoading || otp.length !== 6}
+          >
+            {verifyLoading
+              ? <span className="vp-btn-loading"><span className="vp-spinner" /> Verifying…</span>
+              : "Verify OTP"}
+          </button>
+        )}
+
+        {/* Resend link */}
+        {otpSent && (
+          <div className="vp-resend-row">
+            <span className="vp-resend-label">Didn't receive the code?</span>
+            <button
+              type="button"
+              className="vp-link-btn"
+              onClick={handleSendOtp}
+              disabled={sendLoading || verifyLoading}
+            >
+              {sendLoading ? "Sending…" : "Resend OTP"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

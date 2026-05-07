@@ -28,3 +28,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.png filter=lfs diff=lfs merge=lfs
+login-right-panel.png

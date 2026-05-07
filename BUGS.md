@@ -1,3 +1,19 @@
+## 2026-05-07 — code-review (staged)
+
+### [Medium] Screenshot artifact committed to repo
+- **File**: `login-right-panel.png` (repo root)
+- **Issue**: A Playwright screenshot was staged and will bloat the repo with binary data; regenerated automatically
+- **Suggested fix**: Remove from staging and add to `.gitignore`
+- **Status**: Fixed
+
+### [Low] promote() and reject() exported from verifyService but unused
+- **File**: `src/services/verifyService.js:14,20`
+- **Issue**: Both functions are defined for the spec's promote/reject flow but the current VerifyPortal UI only uses sendOtp/confirmOtp
+- **Suggested fix**: Keep — they'll be used when the promote/reject flow is wired up
+- **Status**: Open
+
+---
+
 ## 2026-05-06 — code-review (staged): clean
 
 No findings. Fixes: duplicate audit tab (API returns both "AUDIT" and "audit"), redundant fetchRoles/fetchPermissions/fetchUsers calls on tab switch, EXCLUDED_MODULES and tab-click /me/permissions refresh.

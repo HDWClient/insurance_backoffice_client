@@ -2369,6 +2369,13 @@ const MODULE_LABELS = {
   AUDIT:    "Audit Log",
 };
 
+const MODULE_ICONS = {
+  ORG: "🏢", CMS_USER: "👥", ROLE: "🎭",
+  BULK: "📦", AUDIT: "🔍", REPORT: "📊",
+  NOTIFICATION: "🔔", SYSTEM: "⚙️", POLICY: "📋",
+  CLAIM: "🗂️", PAYMENT: "💳", DOCUMENT: "📄",
+};
+
 export default function SuperAdminDashboard() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
@@ -2382,6 +2389,10 @@ export default function SuperAdminDashboard() {
 
   const [activeTab, setActiveTab] = useState(null);
 
+  const orgsCount  = useSelector((s) => s.orgs?.orgs?.length ?? 0);
+  const usersTotal = useSelector((s) => s.users?.totalItems ?? 0);
+  const rolesCount = useSelector((s) => s.roles?.roles?.length ?? 0);
+
   // Fetch /me/permissions on mount
   useEffect(() => {
     dispatch(fetchMyPermissions());
@@ -2393,6 +2404,13 @@ export default function SuperAdminDashboard() {
     dispatch(fetchMyPermissions());
     setActiveTab(null);
   }, [activeOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-fetch counts so tiles can show metrics immediately
+  useEffect(() => {
+    dispatch(fetchOrgs());
+    dispatch(fetchUsers());
+    dispatch(fetchRoles());
+  }, [dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build module → Set<action> from the normalised permissions
   const moduleActionMap = myPermissions.reduce((acc, { module, action } = {}) => {
@@ -2418,11 +2436,6 @@ export default function SuperAdminDashboard() {
 
   // can("ROLE_MANAGE") → true if user holds that permission code
   const can = (code) => myPermissions.some((p) => p.code === code);
-
-  // Auto-select first tab once permissions load
-  useEffect(() => {
-    if (!activeTab && modules.length > 0) setActiveTab(modules[0]);
-  }, [modules]);
 
   const handleLogout = () => {
     logoutSuperAdmin();
@@ -2464,55 +2477,91 @@ export default function SuperAdminDashboard() {
         </div>
       </header>
 
-      {/* Tab bar — dynamic, one per module */}
-      <div style={{
-        display: "flex", background: "rgba(16,21,42,0.6)",
-        borderBottom: "1px solid rgba(165,180,252,0.15)",
-        padding: "0 32px", overflowX: "auto",
-        backdropFilter: "blur(8px)",
-      }}>
+      {/* Main content — tile overview or module detail */}
+      <div style={{ padding: "32px 40px", maxWidth: 1200, margin: "0 auto" }}>
         {meLoading ? (
-          <span style={{ padding: "16px 0", fontSize: 13, color: "#64748b" }}>
-            Loading permissions…
-          </span>
+          <p className="status">Loading permissions…</p>
         ) : meError ? (
-          <span style={{ padding: "16px 0", fontSize: 13, color: "#f87171" }}>
-            ⚠ Failed to load permissions ({meError})
-          </span>
+          <p className="status status--error">⚠ Failed to load permissions ({meError})</p>
         ) : modules.length === 0 ? (
-          <span style={{ padding: "16px 0", fontSize: 13, color: "#64748b" }}>
-            No permissions assigned to your account.
-          </span>
-        ) : (
-          modules.map((m) => (
-            <button key={m} onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
-              style={{
-                background: activeTab === m ? "rgba(165,180,252,0.12)" : "none",
-                border: "none",
-                borderBottom: activeTab === m ? "3px solid #a5b4fc" : "3px solid transparent",
-                color: activeTab === m ? "#a5b4fc" : "#64748b",
-                fontWeight: activeTab === m ? 600 : 400,
-                fontSize: 14, padding: "14px 22px", cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 7,
-                transition: "all 0.15s", marginBottom: -2,
-                whiteSpace: "nowrap", flexShrink: 0,
-              }}
-            >
-              {MODULE_LABELS[m] ?? m}
-            </button>
-          ))
-        )}
-      </div>
+          <p className="status">No permissions assigned to your account.</p>
+        ) : !activeTab ? (
 
-      {/* Tab content */}
-      <div style={{ padding: "32px 40px", maxWidth: 1100, margin: "0 auto" }}>
-        {activeTab && (
-          <ModuleTab
-            key={`${activeOrg?.id ?? "default"}-${activeTab}`}
-            module={activeTab}
-            actions={moduleActionMap[activeTab] ?? new Set()}
-            can={can}
-          />
+          /* ── Tile overview ── */
+          <div className="sa-overview">
+            <div className="sa-overview__header">
+              <h1 className="sa-overview__title">Admin Dashboard</h1>
+              <p className="sa-overview__sub">Select a module to manage</p>
+            </div>
+            <div className="sa-tiles-grid">
+              {modules.map((m) => {
+                const mActions = moduleActionMap[m] ?? new Set();
+                const icon  = MODULE_ICONS[m] ?? "🧩";
+                const label = MODULE_LABELS[m] ?? m;
+                let metricValue, metricLabel;
+                if (m === "ORG")           { metricValue = orgsCount;  metricLabel = "Organizations"; }
+                else if (m === "CMS_USER") { metricValue = usersTotal; metricLabel = "Users"; }
+                else if (m === "ROLE")     { metricValue = rolesCount; metricLabel = "Roles"; }
+                else { metricValue = mActions.size; metricLabel = mActions.size !== 1 ? "Permissions" : "Permission"; }
+                return (
+                  <div
+                    key={m}
+                    className="sa-tile"
+                    onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") { setActiveTab(m); dispatch(fetchMyPermissions()); }
+                    }}
+                  >
+                    <div className="sa-tile__top">
+                      <div className="sa-tile__icon">{icon}</div>
+                      <span className="sa-tile__arrow">→</span>
+                    </div>
+                    <div className="sa-tile__title">{label}</div>
+                    <div className="sa-tile__metric">
+                      <span className="sa-tile__metric-value">{metricValue}</span>
+                      <span className="sa-tile__metric-label">{metricLabel}</span>
+                    </div>
+                    <div className="sa-tile__actions">
+                      {[...mActions].map((a) => (
+                        <span key={a} className={`action-badge action-badge--${a.toLowerCase()}`}>{a}</span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        ) : (
+
+          /* ── Module detail view ── */
+          <div>
+            <div className="sa-detail-header">
+              <button className="sa-back-btn" onClick={() => setActiveTab(null)}>
+                ← Dashboard
+              </button>
+              <div className="sa-detail-nav">
+                {modules.map((m) => (
+                  <button
+                    key={m}
+                    className={`sa-nav-pill${activeTab === m ? " sa-nav-pill--active" : ""}`}
+                    onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
+                  >
+                    {MODULE_ICONS[m] ? `${MODULE_ICONS[m]} ` : ""}{MODULE_LABELS[m] ?? m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ModuleTab
+              key={`${activeOrg?.id ?? "default"}-${activeTab}`}
+              module={activeTab}
+              actions={moduleActionMap[activeTab] ?? new Set()}
+              can={can}
+            />
+          </div>
+
         )}
       </div>
     </div>

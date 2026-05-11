@@ -1,3 +1,13 @@
+## 2026-05-11 — code-review (staged) [bulk all-filter + audit columns]
+
+### [Low] auditStatusClass is dead code
+- **File**: `src/components/SuperAdminDashboard/index.jsx` — `auditStatusClass`
+- **Issue**: Function was used by the now-removed Result/status badge cell. No longer called anywhere.
+- **Suggested fix**: Delete the `auditStatusClass` function.
+- **Status**: Fixed
+
+---
+
 ## 2026-05-11 — code-review (staged) [audit log tab]
 
 ### [Low] AuditModuleTab: NOT_FOUND silently shows empty-logs state

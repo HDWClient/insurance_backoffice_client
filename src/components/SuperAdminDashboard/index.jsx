@@ -1279,7 +1279,7 @@ function BulkModuleTab({ actions, onJobsLoad }) {
   const [rows, setRows]                     = useState([]);
   const [rowsLoading, setRowsLoading]       = useState(false);
   const [rowsError, setRowsError]           = useState(null);
-  const [rowFilter, setRowFilter]           = useState("STAGED");
+  const [rowFilter, setRowFilter]           = useState("");
   const [rowPage, setRowPage]               = useState(0);
   const [rowTotalPages, setRowTotalPages]   = useState(1);
   const [parseErrors, setParseErrors]       = useState(null);
@@ -1336,7 +1336,7 @@ function BulkModuleTab({ actions, onJobsLoad }) {
     setRowsLoading(true);
     setRowsError(null);
     try {
-      const data = await bulkService.getJobRows(jobId, { status, page: pg, size: 20, search: search || undefined });
+      const data = await bulkService.getJobRows(jobId, { status: status || undefined, page: pg, size: 20, search: search || undefined });
       setRows(data.items ?? []);
       setRowTotalPages(data.totalPages ?? 1);
     } catch (err) {
@@ -1410,7 +1410,7 @@ function BulkModuleTab({ actions, onJobsLoad }) {
   const openDetail = async (job) => {
     setDetailJob(job);
     setDetailLoading(true);
-    setRows([]); setRowsError(null); setRowPage(0); setRowFilter("STAGED"); setRowSearch("");
+    setRows([]); setRowsError(null); setRowPage(0); setRowFilter(""); setRowSearch("");
     setParseErrors(null); setShowParseErrors(false);
     setResending({}); setResendStatus({});
     setDispatching(false); setDispatchErr(null);
@@ -1419,11 +1419,6 @@ function BulkModuleTab({ actions, onJobsLoad }) {
     try {
       const full = await bulkService.getJob(job.id);
       setDetailJob(full);
-      // Pick the first status that has rows, so we don't request a status
-      // the backend may not support (e.g. DRAFT before it's deployed).
-      const stats = full.rowStats ?? {};
-      const best = ROW_STATUSES.find(s => (stats[s] ?? 0) > 0) ?? "STAGED";
-      setRowFilter(best);
     } catch { /* keep partial data on error */ } finally {
       setDetailLoading(false);
     }
@@ -1463,8 +1458,8 @@ function BulkModuleTab({ actions, onJobsLoad }) {
       const updated = await bulkService.dispatchJob(detailJob.id);
       setDetailJob(updated);
       setRowPage(0);
-      loadRows(updated.id, "STAGED", 0, "");
-      setRowFilter("STAGED"); setRowSearch("");
+      loadRows(updated.id, "", 0, "");
+      setRowFilter(""); setRowSearch("");
     } catch (err) {
       const errMsg  = err?.response?.data?.message;
       const errCode = err?.response?.data?.errorCode;
@@ -1602,6 +1597,12 @@ function BulkModuleTab({ actions, onJobsLoad }) {
                   loadRows(detailJob.id, rowFilter, 0, q);
                 }}
               />
+              <button
+                className={`btn btn--ghost btn--sm${rowFilter === "" ? " btn--active" : ""}`}
+                onClick={() => { setRowFilter(""); setRowPage(0); }}
+              >
+                All
+              </button>
               {ROW_STATUSES.map((s) => (
                 <button
                   key={s}
@@ -1622,14 +1623,14 @@ function BulkModuleTab({ actions, onJobsLoad }) {
               <div className="empty-state__icon">⚠</div>
               <p className="empty-state__text">
                 {rowsError === "INTERNAL_ERROR"
-                  ? `The "${rowFilter}" status filter is not yet supported by the backend. Try a different status.`
+                  ? `The "${rowFilter || "All"}" filter is not yet supported by the backend. Try a different status.`
                   : `Failed to load rows (${rowsError}).`}
               </p>
             </div>
           ) : rows.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state__icon">📭</div>
-              <p className="empty-state__text">No rows with status {rowFilter}.</p>
+              <p className="empty-state__text">{rowFilter ? `No rows with status ${rowFilter}.` : "No rows found."}</p>
             </div>
           ) : (
             <>
@@ -2221,13 +2222,6 @@ function ConsumerUserModuleTab({ actions }) {
 const AUDIT_MODULES = ["", "ORG", "CMS_USER", "ROLE", "BULK", "USER"];
 const AUDIT_ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "READ", "UPLOAD", "ASSIGN", "REVOKE", "LOGIN", "LOGOUT"];
 
-function auditStatusClass(status) {
-  if (!status) return "badge--system";
-  const s = status.toUpperCase();
-  if (s === "SUCCESS") return "badge--active";
-  if (s === "FAILURE" || s === "FAILED") return "badge--inactive";
-  return "badge--system";
-}
 
 function AuditModuleTab({ actions }) {
   const canRead = actions.has("READ") || actions.has("MANAGE");
@@ -2410,10 +2404,10 @@ function AuditModuleTab({ actions }) {
                 <tr>
                   <th>Timestamp</th>
                   <th>Actor</th>
-                  <th>Module</th>
+                  <th>Organization</th>
                   <th>Action</th>
                   <th>Target</th>
-                  <th>Result</th>
+                  <th>Summary</th>
                 </tr>
               </thead>
               <tbody>
@@ -2423,14 +2417,15 @@ function AuditModuleTab({ actions }) {
                       {log.createdAt ? new Date(log.createdAt).toLocaleString() : "—"}
                     </td>
                     <td>
-                      <span className="tbl__bold">{log.actorEmail ?? log.actorId ?? "—"}</span>
+                      <div className="ut-user-info">
+                        <span className="tbl__bold">{log.actor?.fullName ?? log.actor?.email ?? "—"}</span>
+                        {log.actor?.email && log.actor?.fullName && (
+                          <span className="tbl__muted" style={{ fontSize: 12 }}>{log.actor.email}</span>
+                        )}
+                      </div>
                     </td>
-                    <td>
-                      {log.module && (
-                        <span className={`action-badge action-badge--${log.module.toLowerCase()}`}>
-                          {log.module}
-                        </span>
-                      )}
+                    <td className="tbl__muted">
+                      {log.organization?.name ?? "—"}
                     </td>
                     <td>
                       {log.action && (
@@ -2440,14 +2435,10 @@ function AuditModuleTab({ actions }) {
                       )}
                     </td>
                     <td className="tbl__muted">
-                      {log.targetName ?? log.targetId ?? "—"}
+                      {log.target?.label ?? log.target?.id ?? "—"}
                     </td>
-                    <td>
-                      {log.status ? (
-                        <span className={`badge ${auditStatusClass(log.status)}`}>
-                          {log.status}
-                        </span>
-                      ) : "—"}
+                    <td className="tbl__muted" style={{ maxWidth: 320, whiteSpace: "normal", fontSize: 13 }}>
+                      {log.summary ?? "—"}
                     </td>
                   </tr>
                 ))}

@@ -1,3 +1,25 @@
+## 2026-05-11 — code-review (staged)
+
+### [Medium] resetUsers/resetRoles don't clear `loading` — stale data on rapid org switch
+- **File**: `src/store/slices/userSlice.js:115`, `src/store/slices/roleSlice.js:94`
+- **Issue**: Both reset reducers zero out `items`/`roles` but leave `loading` as-is. If a fetch for the previous org is still in-flight when the user switches orgs, `loading = true` blocks the re-fetch dispatch (`!loading && items.length === 0` condition). When the old fetch resolves it overwrites the store with stale data.
+- **Suggested fix**: Add `state.loading = false` to both `resetUsers` and `resetRoles`.
+- **Status**: Fixed
+
+### [Medium] Dev credentials committed to SYSTEM_DESIGN.md
+- **File**: `SYSTEM_DESIGN.md:99–102, 753–754`
+- **Issue**: Test account passwords (`Admin@123`, `Dev@12345`) and MinIO defaults (`minioadmin/minioadmin`) are committed. Poor practice even for dev-only creds — anyone with repo access has the credentials.
+- **Suggested fix**: Replace with placeholder text referencing team password manager.
+- **Status**: Fixed
+
+### [Low] Possible double fetchUserRoles dispatch from loadedUserIds effect
+- **File**: `src/components/SuperAdminDashboard/index.jsx:484–489, 940–946`
+- **Issue**: `userRoles` is a stale closure in the effect. If a previous `fetchUserRoles(u.id)` is still in-flight when the effect fires again, `!userRoles[u.id]` is still true and a second dispatch fires. Result is harmless (API called twice, same data written) but wasteful.
+- **Suggested fix**: Accept as-is (fetchUserRoles is idempotent) or track in-flight IDs with a `useRef` set.
+- **Status**: Accepted
+
+---
+
 ## 2026-05-07 — code-review (staged): clean
 
 No findings. Changes: verify portal review/reject flow with multi-select chips, countdown timer, promote/reject API wiring, dispatch error message improvement.

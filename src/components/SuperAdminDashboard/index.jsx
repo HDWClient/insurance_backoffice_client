@@ -24,6 +24,7 @@ import {
   reviveUser as apiReviveUser,
   assignRole as apiAssignRole,
   revokeRole as apiRevokeRole,
+  resetUsers,
 } from "../../store/slices/userSlice";
 import {
   fetchRoles,
@@ -33,6 +34,7 @@ import {
   renameRole as apiRenameRole,
   addPermissionToRole,
   removePermissionFromRole,
+  resetRoles,
 } from "../../store/slices/roleSlice";
 import { fetchMyPermissions } from "../../store/slices/meSlice";
 import { useApp } from "../../context/AppContext";
@@ -472,11 +474,19 @@ function UserModuleTab({ actions, can }) {
 
   useEffect(() => {
     dispatch(fetchRoles());
-    dispatch(fetchUsers()).then((res) => {
-      if (fetchUsers.fulfilled.match(res))
-        (res.payload?.items ?? []).forEach((u) => dispatch(fetchUserRoles(u.id)));
-    });
+    dispatch(fetchUsers());
   }, [dispatch]);
+
+  // Load userRoles whenever the user list populates or gains new members.
+  // Using the joined ID string as dependency avoids stale closures from the .then() pattern
+  // and handles the case where users were pre-fetched before this tab mounted.
+  const loadedUserIds = users.map((u) => u.id).join(",");
+  useEffect(() => {
+    if (users.length === 0) return;
+    users.forEach((u) => {
+      if (!userRoles[u.id]) dispatch(fetchUserRoles(u.id));
+    });
+  }, [loadedUserIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleInvite = async (e) => {
     e.preventDefault();
@@ -922,11 +932,18 @@ function RoleModuleTab({ actions, can }) {
   useEffect(() => {
     dispatch(fetchRoles());
     dispatch(fetchPermissions());
-    dispatch(fetchUsers()).then((res) => {
-      if (fetchUsers.fulfilled.match(res))
-        (res.payload?.items ?? []).forEach((u) => dispatch(fetchUserRoles(u.id)));
-    });
+    dispatch(fetchUsers());
   }, [dispatch]);
+
+  // Mirror the same loadedUserIds pattern as UserModuleTab so userRoles always
+  // populate regardless of whether users were pre-fetched before mount.
+  const loadedUserIds = users.map((u) => u.id).join(",");
+  useEffect(() => {
+    if (users.length === 0) return;
+    users.forEach((u) => {
+      if (!userRoles[u.id]) dispatch(fetchUserRoles(u.id));
+    });
+  }, [loadedUserIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── helpers ──────────────────────────────────────────────── */
   const openPanel = (roleId, panel) =>
@@ -2400,10 +2417,15 @@ export default function SuperAdminDashboard() {
     dispatch(fetchMyPermissions());
   }, [dispatch]);
 
-  // Re-fetch /me/permissions and reset tab whenever the org changes
+  // Re-fetch /me/permissions and reset tab whenever the org changes.
+  // Also clear and reload users/roles so stale data from the previous org is replaced.
   useEffect(() => {
     if (!activeOrg?.id) return;
     dispatch(fetchMyPermissions());
+    dispatch(resetUsers());
+    dispatch(resetRoles());
+    dispatch(fetchUsers());
+    dispatch(fetchRoles());
     setActiveTab(null);
   }, [activeOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

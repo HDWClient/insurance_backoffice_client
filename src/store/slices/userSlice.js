@@ -112,6 +112,17 @@ const userSlice = createSlice({
       state.error = null;
       state.errorCode = null;
     },
+    resetUsers(state) {
+      state.items = [];
+      state.page = 0;
+      state.totalItems = 0;
+      state.totalPages = 1;
+      state.hasNext = false;
+      state.userRoles = {};
+      state.loading = false;
+      state.error = null;
+      state.errorCode = null;
+    },
   },
   extraReducers: (builder) => {
     const pending = (state) => { state.loading = true; state.error = null; state.errorCode = null; };
@@ -183,5 +194,5 @@ const userSlice = createSlice({
   },
 });
 
-export const { clearUserError } = userSlice.actions;
+export const { clearUserError, resetUsers } = userSlice.actions;
 export default userSlice.reducer;

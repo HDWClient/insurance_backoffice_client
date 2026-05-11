@@ -91,6 +91,12 @@ const roleSlice = createSlice({
       state.error = null;
       state.errorCode = null;
     },
+    resetRoles(state) {
+      state.roles = [];
+      state.loading = false;
+      state.error = null;
+      state.errorCode = null;
+    },
   },
   extraReducers: (builder) => {
     const pending = (state) => { state.loading = true; state.error = null; state.errorCode = null; };
@@ -145,5 +151,5 @@ const roleSlice = createSlice({
   },
 });
 
-export const { clearRoleError } = roleSlice.actions;
+export const { clearRoleError, resetRoles } = roleSlice.actions;
 export default roleSlice.reducer;

@@ -1,3 +1,19 @@
+## 2026-05-11 — code-review (staged) [bulk jobs tile + default load]
+
+### [Low] Double listJobs() call on initial dashboard mount
+- **File**: `src/components/SuperAdminDashboard/index.jsx` — org-switch effect + pre-fetch effect
+- **Issue**: Both effects fire on first render (org-switch effect fires because `activeOrg?.id` is truthy on mount). Two concurrent `listJobs()` calls race; last to resolve wins. Harmless but wastes one request.
+- **Suggested fix**: Guard the org-switch `listJobs()` call with a `useRef` mounted flag, or remove it from the pre-fetch effect and rely on org-switch effect only.
+- **Status**: Open
+
+### [Low] Polling `loadJobs` triggers parent re-render every 2 s while BULK tab is open
+- **File**: `src/components/SuperAdminDashboard/index.jsx:1309`
+- **Issue**: Every poll tick calls `onJobsLoad?.(items.length)` → `setBulkJobsCount` in parent → parent re-renders. User can't see the tile while in the tab, so impact is invisible but adds CPU churn.
+- **Suggested fix**: Skip `onJobsLoad` when the count hasn't changed: `if (items.length !== prevCount) onJobsLoad?.(items.length)`.
+- **Status**: Open
+
+---
+
 ## 2026-05-11 — code-review (staged)
 
 ### [Medium] resetUsers/resetRoles don't clear `loading` — stale data on rapid org switch

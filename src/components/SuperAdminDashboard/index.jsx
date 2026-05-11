@@ -1259,7 +1259,7 @@ function rowStatusClass(status) {
   }[status] ?? "badge--system";
 }
 
-function BulkModuleTab({ actions }) {
+function BulkModuleTab({ actions, onJobsLoad }) {
   const canUpload = actions.has("UPLOAD");
   const canRead   = actions.has("READ") || actions.has("UPLOAD");
 
@@ -1303,8 +1303,10 @@ function BulkModuleTab({ actions }) {
     setJobsLoading(true);
     try {
       const data = await bulkService.listJobs();
-      setJobs(data.items ?? []);
+      const items = data.items ?? [];
+      setJobs(items);
       setJobsError(null);
+      onJobsLoad?.(items.length);
     } catch (err) {
       const status = err?.response?.status;
       const code   = err?.response?.data?.errorCode;
@@ -1316,10 +1318,10 @@ function BulkModuleTab({ actions }) {
     } finally {
       setJobsLoading(false);
     }
-  }, [canRead]);
+  }, [canRead, onJobsLoad]);
 
-  // Jobs are fetched only after an upload or manual Refresh — not on mount.
-  // This avoids hitting /bulk before the backend has the endpoint.
+  // Load jobs on mount so the list is populated immediately when the tab opens.
+  useEffect(() => { loadJobs(); }, [loadJobs]);
 
   useEffect(() => {
     if (detailJob) return;
@@ -2261,10 +2263,10 @@ function GenericModuleTab({ module, actions }) {
 /* ─────────────────────────────────────────────────────────── */
 /*  Route module → component                                   */
 /* ─────────────────────────────────────────────────────────── */
-function ModuleTab({ module, actions, can }) {
+function ModuleTab({ module, actions, can, onJobsLoad }) {
   if (module === "ORG")      return <OrgModuleTab  actions={actions} can={can} />;
   if (module === "ROLE")     return <RoleModuleTab actions={actions} can={can} />;
-  if (module === "BULK")     return <BulkModuleTab actions={actions} />;
+  if (module === "BULK")     return <BulkModuleTab actions={actions} onJobsLoad={onJobsLoad} />;
   if (module === "CMS_USER") return <UserModuleTab actions={actions} can={can} />;
   if (module === "USER")     return <ConsumerUserModuleTab actions={actions} />;
   return <GenericModuleTab module={module} actions={actions} />;
@@ -2406,7 +2408,8 @@ export default function SuperAdminDashboard() {
   } = useSelector((s) => s.me ?? {});
   const myPermissions = Array.isArray(rawPerms) ? rawPerms : [];
 
-  const [activeTab, setActiveTab] = useState(null);
+  const [activeTab, setActiveTab]         = useState(null);
+  const [bulkJobsCount, setBulkJobsCount] = useState(null);
 
   const orgsCount  = useSelector((s) => s.orgs?.orgs?.length ?? 0);
   const usersTotal = useSelector((s) => s.users?.totalItems ?? 0);
@@ -2426,6 +2429,10 @@ export default function SuperAdminDashboard() {
     dispatch(resetRoles());
     dispatch(fetchUsers());
     dispatch(fetchRoles());
+    setBulkJobsCount(null);
+    bulkService.listJobs()
+      .then((d) => setBulkJobsCount(d.items?.length ?? 0))
+      .catch(() => {});
     setActiveTab(null);
   }, [activeOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2434,6 +2441,9 @@ export default function SuperAdminDashboard() {
     dispatch(fetchOrgs());
     dispatch(fetchUsers());
     dispatch(fetchRoles());
+    bulkService.listJobs()
+      .then((d) => setBulkJobsCount(d.items?.length ?? 0))
+      .catch(() => {}); // silently ignore if endpoint not yet deployed
   }, [dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build module → Set<action> from the normalised permissions
@@ -2523,10 +2533,11 @@ export default function SuperAdminDashboard() {
                 const icon  = MODULE_ICONS[m] ?? "🧩";
                 const label = MODULE_LABELS[m] ?? m;
                 let metricValue, metricLabel;
-                if (m === "ORG")           { metricValue = orgsCount;  metricLabel = "Organizations"; }
-                else if (m === "CMS_USER") { metricValue = usersTotal; metricLabel = "Users"; }
-                else if (m === "ROLE")     { metricValue = rolesCount; metricLabel = "Roles"; }
-                else { metricValue = mActions.size; metricLabel = mActions.size !== 1 ? "Permissions" : "Permission"; }
+                if (m === "ORG")           { metricValue = orgsCount;      metricLabel = "Organizations"; }
+                else if (m === "CMS_USER") { metricValue = usersTotal;     metricLabel = "Users"; }
+                else if (m === "ROLE")     { metricValue = rolesCount;     metricLabel = "Roles"; }
+                else if (m === "BULK")     { metricValue = bulkJobsCount;  metricLabel = "Jobs"; }
+                const hasMetric = metricValue !== null && metricValue !== undefined;
                 return (
                   <div
                     key={m}
@@ -2543,10 +2554,12 @@ export default function SuperAdminDashboard() {
                       <span className="sa-tile__arrow">→</span>
                     </div>
                     <div className="sa-tile__title">{label}</div>
-                    <div className="sa-tile__metric">
-                      <span className="sa-tile__metric-value">{metricValue}</span>
-                      <span className="sa-tile__metric-label">{metricLabel}</span>
-                    </div>
+                    {hasMetric && (
+                      <div className="sa-tile__metric">
+                        <span className="sa-tile__metric-value">{metricValue}</span>
+                        <span className="sa-tile__metric-label">{metricLabel}</span>
+                      </div>
+                    )}
                     <div className="sa-tile__actions">
                       {[...mActions].map((a) => (
                         <span key={a} className={`action-badge action-badge--${a.toLowerCase()}`}>{a}</span>
@@ -2583,6 +2596,7 @@ export default function SuperAdminDashboard() {
               module={activeTab}
               actions={moduleActionMap[activeTab] ?? new Set()}
               can={can}
+              onJobsLoad={setBulkJobsCount}
             />
           </div>
 

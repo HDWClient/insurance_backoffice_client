@@ -1,3 +1,13 @@
+## 2026-05-11 — code-review (staged) [audit log tab]
+
+### [Low] AuditModuleTab: NOT_FOUND silently shows empty-logs state
+- **File**: `src/components/SuperAdminDashboard/index.jsx` — `AuditModuleTab`
+- **Issue**: When `/audit` returns 404/NOT_FOUND, `ready` stays `false` and `error` is swallowed. The component falls through to the main render and displays "No audit logs found for the selected filters", which is misleading.
+- **Suggested fix**: Add a `!ready && !loading && !error` guard before the main return that shows a retry card.
+- **Status**: Fixed
+
+---
+
 ## 2026-05-11 — code-review (staged) [bulk jobs tile + default load]
 
 ### [Low] Double listJobs() call on initial dashboard mount

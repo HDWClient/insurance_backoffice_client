@@ -3,6 +3,7 @@ import * as userService from "../../services/userService";
 import * as roleService from "../../services/roleService";
 import * as bulkService from "../../services/bulkService";
 import * as consumerUserService from "../../services/consumerUserService";
+import * as auditService from "../../services/auditService";
 import { getRoleUsers, bulkRevokeRoleUsers } from "../../services/roleService";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -2215,6 +2216,263 @@ function ConsumerUserModuleTab({ actions }) {
 }
 
 /* ─────────────────────────────────────────────────────────── */
+/*  AUDIT module tab — paginated audit log with filters        */
+/* ─────────────────────────────────────────────────────────── */
+const AUDIT_MODULES = ["", "ORG", "CMS_USER", "ROLE", "BULK", "USER"];
+const AUDIT_ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "READ", "UPLOAD", "ASSIGN", "REVOKE", "LOGIN", "LOGOUT"];
+
+function auditStatusClass(status) {
+  if (!status) return "badge--system";
+  const s = status.toUpperCase();
+  if (s === "SUCCESS") return "badge--active";
+  if (s === "FAILURE" || s === "FAILED") return "badge--inactive";
+  return "badge--system";
+}
+
+function AuditModuleTab({ actions }) {
+  const canRead = actions.has("READ") || actions.has("MANAGE");
+
+  // Start with ready=false so no API call fires on mount.
+  // Once the user triggers a load and the endpoint responds with data, ready flips to true.
+  const [ready, setReady]           = useState(false);
+  const [logs, setLogs]             = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState(null);
+  const [page, setPage]             = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [moduleFilter, setModuleFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
+  const [fromDate, setFromDate]     = useState("");
+  const [toDate, setToDate]         = useState("");
+
+  const loadLogs = useCallback(async (pg, mod, act, from, to) => {
+    if (!canRead) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await auditService.listAuditLogs({
+        page: pg,
+        size: 20,
+        module: mod || undefined,
+        action: act || undefined,
+        from:   from || undefined,
+        to:     to   || undefined,
+      });
+      setReady(true);
+      setLogs(data?.items ?? []);
+      setTotalPages(data?.totalPages ?? 1);
+      setTotalItems(data?.totalItems ?? 0);
+    } catch (err) {
+      const code = err?.response?.data?.errorCode;
+      // NOT_FOUND means the endpoint isn't deployed yet — leave ready=false, no error shown
+      if (code !== "NOT_FOUND") {
+        setError(code ?? "FETCH_FAILED");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [canRead]);
+
+  // Load on mount so data is visible as soon as the tab opens.
+  useEffect(() => { loadLogs(0, "", "", "", ""); }, [loadLogs]);
+
+  const handleApplyFilters = () => {
+    setPage(0);
+    loadLogs(0, moduleFilter, actionFilter, fromDate, toDate);
+  };
+
+  const handleClearFilters = () => {
+    setModuleFilter(""); setActionFilter(""); setFromDate(""); setToDate("");
+    setPage(0);
+    loadLogs(0, "", "", "", "");
+  };
+
+  const handlePageChange = (pg) => {
+    setPage(pg);
+    loadLogs(pg, moduleFilter, actionFilter, fromDate, toDate);
+  };
+
+  const handleRefresh = () => loadLogs(page, moduleFilter, actionFilter, fromDate, toDate);
+
+  if (!canRead) {
+    return (
+      <div className="tab-content">
+        <div className="empty-state">
+          <div className="empty-state__icon">🔒</div>
+          <p className="empty-state__text">You don't have permission to view audit logs.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading skeleton shown on first load (before data or error arrives)
+  if (!ready && loading) {
+    return (
+      <div className="tab-content">
+        <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+      </div>
+    );
+  }
+
+  // First load failed (auth error, network issue, or endpoint not found)
+  if (!ready && !loading) {
+    return (
+      <div className="tab-content">
+        <div className="card">
+          <div className="card__body" style={{ textAlign: "center", padding: "48px 24px" }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>{error ? "⚠️" : "🔍"}</div>
+            <h3 style={{ margin: "0 0 8px", color: "#0f172a", fontSize: 16, fontWeight: 600 }}>
+              {error ? "Failed to load audit logs" : "Audit Log unavailable"}
+            </h3>
+            <p style={{ margin: "0 0 20px", color: "#64748b", fontSize: 14, maxWidth: 360, marginInline: "auto" }}>
+              {error
+                ? `Error: ${error}`
+                : "The audit log endpoint could not be reached. It may not yet be deployed on this backend."}
+            </p>
+            <button className="btn btn--ghost btn--sm" onClick={() => loadLogs(0, "", "", "", "")}>
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tab-content">
+      {/* ── Filter bar ── */}
+      <div className="card">
+        <div className="card__header">
+          <h2 className="card__title">Filters</h2>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn--ghost btn--sm" onClick={handleClearFilters}>Clear</button>
+            <button className="btn btn--primary btn--sm" onClick={handleApplyFilters} disabled={loading}>
+              {loading ? "Loading…" : "Apply"}
+            </button>
+          </div>
+        </div>
+        <div className="card__body">
+          <div className="form__row" style={{ flexWrap: "wrap", gap: 12 }}>
+            <div className="form__field" style={{ minWidth: 140 }}>
+              <label className="form__label">Module</label>
+              <select className="form__input form__select" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
+                {AUDIT_MODULES.map((m) => <option key={m} value={m}>{m || "All"}</option>)}
+              </select>
+            </div>
+            <div className="form__field" style={{ minWidth: 140 }}>
+              <label className="form__label">Action</label>
+              <select className="form__input form__select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+                {AUDIT_ACTIONS.map((a) => <option key={a} value={a}>{a || "All"}</option>)}
+              </select>
+            </div>
+            <div className="form__field" style={{ minWidth: 160 }}>
+              <label className="form__label">From</label>
+              <input type="date" className="form__input" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+            </div>
+            <div className="form__field" style={{ minWidth: 160 }}>
+              <label className="form__label">To</label>
+              <input type="date" className="form__input" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Log table ── */}
+      <div className="card">
+        <div className="card__header">
+          <h2 className="card__title">
+            Audit Logs
+            {totalItems > 0 && <span className="card__count">{totalItems}</span>}
+          </h2>
+          <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+
+        {error && (
+          <p className="status status--error" style={{ padding: "12px 24px" }}>
+            {error}
+          </p>
+        )}
+
+        {loading && logs.length === 0 ? (
+          <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+        ) : !loading && logs.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state__icon">🔍</div>
+            <p className="empty-state__text">No audit logs found for the selected filters.</p>
+          </div>
+        ) : (
+          <>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Actor</th>
+                  <th>Module</th>
+                  <th>Action</th>
+                  <th>Target</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <tr key={log.id}>
+                    <td className="tbl__mono" style={{ whiteSpace: "nowrap" }}>
+                      {log.createdAt ? new Date(log.createdAt).toLocaleString() : "—"}
+                    </td>
+                    <td>
+                      <span className="tbl__bold">{log.actorEmail ?? log.actorId ?? "—"}</span>
+                    </td>
+                    <td>
+                      {log.module && (
+                        <span className={`action-badge action-badge--${log.module.toLowerCase()}`}>
+                          {log.module}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {log.action && (
+                        <span className={`action-badge action-badge--${log.action.toLowerCase()}`}>
+                          {log.action}
+                        </span>
+                      )}
+                    </td>
+                    <td className="tbl__muted">
+                      {log.targetName ?? log.targetId ?? "—"}
+                    </td>
+                    <td>
+                      {log.status ? (
+                        <span className={`badge ${auditStatusClass(log.status)}`}>
+                          {log.status}
+                        </span>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {totalPages > 1 && (
+              <div className="bulk-pagination">
+                <button className="btn btn--ghost btn--sm" disabled={page === 0} onClick={() => handlePageChange(page - 1)}>
+                  ← Prev
+                </button>
+                <span className="tbl__muted">Page {page + 1} of {totalPages}</span>
+                <button className="btn btn--ghost btn--sm" disabled={page >= totalPages - 1} onClick={() => handlePageChange(page + 1)}>
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────── */
 /*  Generic fallback tab — for modules with no mapped API yet */
 /* ─────────────────────────────────────────────────────────── */
 function GenericModuleTab({ module, actions }) {
@@ -2264,11 +2522,12 @@ function GenericModuleTab({ module, actions }) {
 /*  Route module → component                                   */
 /* ─────────────────────────────────────────────────────────── */
 function ModuleTab({ module, actions, can, onJobsLoad }) {
-  if (module === "ORG")      return <OrgModuleTab  actions={actions} can={can} />;
-  if (module === "ROLE")     return <RoleModuleTab actions={actions} can={can} />;
-  if (module === "BULK")     return <BulkModuleTab actions={actions} onJobsLoad={onJobsLoad} />;
-  if (module === "CMS_USER") return <UserModuleTab actions={actions} can={can} />;
+  if (module === "ORG")      return <OrgModuleTab      actions={actions} can={can} />;
+  if (module === "ROLE")     return <RoleModuleTab     actions={actions} can={can} />;
+  if (module === "BULK")     return <BulkModuleTab     actions={actions} onJobsLoad={onJobsLoad} />;
+  if (module === "CMS_USER") return <UserModuleTab     actions={actions} can={can} />;
   if (module === "USER")     return <ConsumerUserModuleTab actions={actions} />;
+  if (module === "AUDIT")    return <AuditModuleTab    actions={actions} />;
   return <GenericModuleTab module={module} actions={actions} />;
 }
 

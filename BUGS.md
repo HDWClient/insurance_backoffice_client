@@ -1,3 +1,31 @@
+## 2026-05-13 — code-review (staged) [bulk operations redesign]
+
+### [Low] completedJobs computed but never used
+- **File**: `src/components/SuperAdminDashboard/index.jsx` — BulkModuleTab list view
+- **Issue**: `const completedJobs = jobs.filter(...)` is calculated on every render but not referenced anywhere in the JSX.
+- **Suggested fix**: Remove the unused variable.
+- **Status**: Fixed
+
+### [Low] !important inside @keyframes is ignored by all browsers
+- **File**: `src/components/SuperAdminDashboard/styles.css` — `@keyframes bulk-bar-grow`
+- **Issue**: `from { width: 0 !important; }` — browsers ignore `!important` in keyframes, so the grow animation is silently skipped and bars appear at their final width instantly.
+- **Suggested fix**: Animate via `transform: scaleX()` instead, or drive width through a CSS custom property + transition.
+- **Status**: Open
+
+### [Low] Dead .bulk-job-card__top CSS class
+- **File**: `src/components/SuperAdminDashboard/styles.css`
+- **Issue**: `.bulk-job-card__top` is defined in CSS but the element was removed from JSX in the latest badge-placement fix.
+- **Suggested fix**: Delete the `.bulk-job-card__top` rule.
+- **Status**: Fixed
+
+### [Low] CSS Color Level 4 rgba(var() / alpha) syntax
+- **File**: `src/components/SuperAdminDashboard/styles.css` — `.bulk-action-panel__item`
+- **Issue**: `background: rgba(var(--item-color, 99 102 241) / 0.05)` silently fails in Safari < 15 — item background won't render.
+- **Suggested fix**: Replace with a static fallback background (e.g. `rgba(99,102,241,0.05)`); the colored `border-left` already provides visual identity per item.
+- **Status**: Open
+
+---
+
 ## 2026-05-13 — code-review (staged) [dashboard redesign]
 
 ### [Low] bgRots array declared inside modules.map callback

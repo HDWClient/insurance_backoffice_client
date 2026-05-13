@@ -1260,6 +1260,20 @@ function rowStatusClass(status) {
   }[status] ?? "badge--system";
 }
 
+function rowStatusColor(status) {
+  return { PROMOTED: "#16a34a", VERIFIED: "#059669", STAGED: "#6366f1", OTP_SENT: "#f59e0b",
+    DRAFT: "#94a3b8", REJECTED: "#dc2626", EXPIRED: "#f87171", INVITE_FAILED: "#ef4444",
+    CANCELLED: "#cbd5e1", SUPERSEDED: "#8b5cf6" }[status] ?? "#6366f1";
+}
+
+function formatTimeAgo(date) {
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (s < 60)    return "just now";
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
 function BulkModuleTab({ actions, onJobsLoad }) {
   const canUpload = actions.has("UPLOAD");
   const canRead   = actions.has("READ") || actions.has("UPLOAD");
@@ -1515,23 +1529,32 @@ function BulkModuleTab({ actions, onJobsLoad }) {
   /* ── DETAIL VIEW ── */
   if (detailJob) {
     const stats = detailJob.rowStats ?? {};
-    return (
-      <div className="tab-content">
+    const needsAttention = [];
+    if ((stats.DRAFT          ?? 0) > 0) needsAttention.push({ icon: "📨", color: "#6366f1", msg: `${stats.DRAFT} draft row${stats.DRAFT !== 1 ? "s" : ""} ready — send invites to start enrollment`, cta: "Send Invites", onClick: handleDispatch, busy: dispatching });
+    if ((stats.INVITE_FAILED  ?? 0) > 0) needsAttention.push({ icon: "⚠️", color: "#f59e0b", msg: `${stats.INVITE_FAILED} invite${stats.INVITE_FAILED !== 1 ? "s" : ""} failed to deliver`, hint: "Resend from the rows table below" });
+    if ((stats.EXPIRED        ?? 0) > 0) needsAttention.push({ icon: "⏰", color: "#ef4444", msg: `${stats.EXPIRED} row${stats.EXPIRED !== 1 ? "s" : ""} expired — invites need to be resent`, hint: "Resend from the rows table below" });
 
-        <div className="bulk-detail-header">
-          <button className="btn btn--ghost btn--sm" onClick={() => setDetailJob(null)}>← Back to Jobs</button>
-          <div className="bulk-detail-title">
-            <span className="tbl__bold">Job #{detailJob.jobNumber}</span>
-            <span className="tbl__muted" style={{ fontSize: 13 }}>{detailJob.fileName}</span>
-            <span className={`badge ${jobStatusClass(detailJob.status)}`}>{detailJob.status}</span>
-            {(detailJob.status === "PENDING" || detailJob.status === "PROCESSING") && (
-              <span className="bulk-polling-dot" title="Polling for updates…" />
-            )}
+    return (
+      <div className="tab-content bulk-view-enter">
+
+        {/* Detail page header */}
+        <div className="bulk-detail-hdr">
+          <button className="btn btn--ghost btn--sm" onClick={() => setDetailJob(null)}>← Back</button>
+          <div className="bulk-detail-hdr__center">
+            <div className="bulk-detail-hdr__title">
+              Job #{detailJob.jobNumber}
+              <span className={`badge ${jobStatusClass(detailJob.status)}`}>{detailJob.status}</span>
+              {(detailJob.status === "PENDING" || detailJob.status === "PROCESSING") && (
+                <span className="bulk-polling-dot" title="Polling for updates…" />
+              )}
+              {detailLoading && <span className="tbl__muted" style={{ fontSize: 12, fontWeight: 400 }}>Loading…</span>}
+            </div>
+            <div className="bulk-detail-hdr__file">📄 {detailJob.fileName}</div>
           </div>
           {canUpload && !["CANCELLED","FAILED"].includes(detailJob.status) && (
             cancelJobConfirm ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ fontSize: 13, color: "#f87171" }}>Cancel all non-promoted rows?</span>
+              <div className="bulk-cancel-confirm">
+                <span>Cancel all non-promoted rows?</span>
                 <button className="btn btn--danger btn--sm" onClick={handleCancelJob} disabled={cancellingJob}>
                   {cancellingJob ? "Cancelling…" : "Yes, cancel"}
                 </button>
@@ -1539,81 +1562,117 @@ function BulkModuleTab({ actions, onJobsLoad }) {
                 {cancelJobErr && <span style={{ fontSize: 11, color: "#f87171" }}>{cancelJobErr}</span>}
               </div>
             ) : (
-              <button className="btn btn--danger btn--sm" onClick={() => setCancelJobConfirm(true)}>Cancel Job</button>
+              <button className="btn btn--danger btn--sm" onClick={() => setCancelJobConfirm(true)}>✕ Cancel Job</button>
             )
           )}
         </div>
 
-        <div className="card">
-          <div className="card__header">
-            <h2 className="card__title">
-              Summary
-              {detailLoading && <span className="tbl__muted" style={{ fontSize: 12 }}>Loading…</span>}
-            </h2>
-            <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#64748b" }}>
-              <span>Total: <strong style={{ color: "#e2e8f0" }}>{detailJob.totalRows ?? "—"}</strong></span>
-              <span>Parsed: <strong style={{ color: "#34d399" }}>{detailJob.parsedRows ?? "—"}</strong></span>
-              <span>Invalid: <strong style={{ color: "#f87171" }}>{detailJob.invalidRows ?? "—"}</strong></span>
+        {/* Key stats strip */}
+        <div className="bulk-summary-strip">
+          {[
+            { label: "Total Rows",  value: detailJob.totalRows  ?? "—", accent: "#6366f1" },
+            { label: "Valid",       value: detailJob.parsedRows  ?? "—", accent: "#16a34a" },
+            { label: "Invalid",     value: detailJob.invalidRows ?? 0,   accent: (detailJob.invalidRows ?? 0) > 0 ? "#dc2626" : "#94a3b8" },
+            { label: "Submitted",   value: detailJob.createdAt ? new Date(detailJob.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "—", accent: "#64748b", small: true },
+          ].map(({ label, value, accent, small }) => (
+            <div key={label} className="bulk-summary-card">
+              <div className="bulk-summary-card__value" style={{ color: accent, fontSize: small ? 17 : undefined }}>{value}</div>
+              <div className="bulk-summary-card__label">{label}</div>
             </div>
-          </div>
-          <div className="card__body">
-            <div className="bulk-stats-grid">
-              {Object.entries(stats).map(([k, v]) => (
-                <div key={k} className="bulk-stat-card">
-                  <div className="bulk-stat-count">{v}</div>
-                  <span className={`badge ${rowStatusClass(k)}`}>{k}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
 
-        {detailJob.status === "COMPLETED" && (stats.DRAFT ?? 0) > 0 && (
-          <div className="bulk-dispatch-banner">
-            <div>
-              <strong>{stats.DRAFT} draft row{stats.DRAFT !== 1 ? "s" : ""}</strong> awaiting review — send invites to let members verify their accounts.
+        {/* Needs attention action panel */}
+        {needsAttention.length > 0 && (
+          <div className="bulk-action-panel">
+            <div className="bulk-action-panel__title">⚡ Needs Attention</div>
+            {needsAttention.map((item, i) => (
+              <div key={i} className="bulk-action-panel__item" style={{ "--item-color": item.color }}>
+                <span className="bulk-action-panel__icon">{item.icon}</span>
+                <span className="bulk-action-panel__msg">{item.msg}</span>
+                {item.cta && (
+                  <button className="btn btn--primary btn--sm" onClick={item.onClick} disabled={item.busy}>
+                    {item.busy ? "Sending…" : item.cta}
+                  </button>
+                )}
+                {item.hint && <span className="bulk-action-panel__hint">{item.hint}</span>}
+              </div>
+            ))}
+            {dispatchErr && <div className="bulk-action-panel__err">⚠ {dispatchErr}</div>}
+          </div>
+        )}
+
+        {/* Enrollment progress breakdown */}
+        {Object.keys(stats).length > 0 && (
+          <div className="card">
+            <div className="card__header">
+              <h2 className="card__title">Enrollment Progress</h2>
+              <span className="card__count">{detailJob.totalRows ?? 0} rows</span>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              {dispatchErr && <span style={{ fontSize: 12, color: "#f87171" }}>{dispatchErr}</span>}
-              <button className="btn btn--primary btn--sm" onClick={handleDispatch} disabled={dispatching}>
-                {dispatching ? "Sending…" : "Send Invites"}
-              </button>
+            <div className="card__body">
+              <div className="bulk-progress-breakdown">
+                {Object.entries(stats)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([k, v]) => {
+                    const pct = detailJob.totalRows > 0 ? Math.round(v / detailJob.totalRows * 100) : 0;
+                    return (
+                      <div key={k} className="bulk-pb-row">
+                        <div className="bulk-pb-label">
+                          <span className={`badge ${rowStatusClass(k)}`}>{k}</span>
+                        </div>
+                        <div className="bulk-pb-bar-wrap">
+                          <div className="bulk-pb-bar-fill" style={{ width: `${Math.max(pct, pct > 0 ? 1 : 0)}%`, background: rowStatusColor(k) }} />
+                        </div>
+                        <div className="bulk-pb-right">
+                          <span className="bulk-pb-count">{v}</span>
+                          <span className="bulk-pb-pct">{pct}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
           </div>
         )}
 
+        {/* Rows card */}
         <div className="card">
           <div className="card__header">
             <h2 className="card__title">Rows</h2>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              className="bulk-search-input"
+              placeholder="Search name, mobile, email…"
+              value={rowSearch}
+              onChange={(e) => {
+                const q = e.target.value;
+                setRowSearch(q);
+                setRowPage(0);
+                loadRows(detailJob.id, rowFilter, 0, q);
+              }}
+            />
+          </div>
+
+          {/* Status filter checkboxes */}
+          <div className="bulk-filter-grid">
+            <label className={`bulk-filter-check${rowFilter === "" ? " bulk-filter-check--on" : ""}`}>
               <input
-                className="bulk-search-input"
-                placeholder="Search mobile, row#, city…"
-                value={rowSearch}
-                onChange={(e) => {
-                  const q = e.target.value;
-                  setRowSearch(q);
-                  setRowPage(0);
-                  loadRows(detailJob.id, rowFilter, 0, q);
-                }}
+                type="checkbox"
+                checked={rowFilter === ""}
+                onChange={() => { setRowFilter(""); setRowPage(0); }}
               />
-              <button
-                className={`btn btn--ghost btn--sm${rowFilter === "" ? " btn--active" : ""}`}
-                onClick={() => { setRowFilter(""); setRowPage(0); }}
-              >
-                All
-              </button>
-              {ROW_STATUSES.map((s) => (
-                <button
-                  key={s}
-                  className={`btn btn--ghost btn--sm${rowFilter === s ? " btn--active" : ""}`}
-                  onClick={() => { setRowFilter(s); setRowPage(0); }}
-                >
-                  {s}
-                  {stats[s] != null && <span style={{ marginLeft: 5, fontSize: 11, color: "#64748b" }}>{stats[s]}</span>}
-                </button>
-              ))}
-            </div>
+              <span>All</span>
+            </label>
+            {ROW_STATUSES.map((s) => (
+              <label key={s} className={`bulk-filter-check bulk-filter-check--${s.toLowerCase().replace("_","-")}${rowFilter === s ? " bulk-filter-check--on" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={rowFilter === s}
+                  onChange={() => { const next = rowFilter === s ? "" : s; setRowFilter(next); setRowPage(0); }}
+                />
+                <span>{s.replace("_", " ")}</span>
+                {stats[s] != null && <span className="bulk-filter-check__count">{stats[s]}</span>}
+              </label>
+            ))}
           </div>
 
           {rowsLoading && rows.length === 0 ? (
@@ -1673,26 +1732,26 @@ function BulkModuleTab({ actions, onJobsLoad }) {
                           </td>
                           {canUpload && (
                             <td>
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                              <div className="bulk-row-actions">
                                 {isDraft && (
                                   <button
-                                    className="btn btn--ghost btn--sm"
+                                    className={`btn btn--ghost btn--sm${isEditingThis ? " btn--active" : ""}`}
                                     onClick={() => {
                                       setEditingRow(isEditingThis ? null : row.id);
                                       setEditState({ email: row.email, mobile: row.mobile, name: row.name, dob: row.dob ?? "", gender: row.gender ?? "", pincode: row.pincode ?? "", city: row.city ?? "", state: row.state ?? "", panNumber: row.panNumber ?? "", aadhaarLast4: row.aadhaarLast4 ?? "", employeeId: row.employeeId ?? "" });
                                       setEditErr(null);
                                     }}
                                   >
-                                    {isEditingThis ? "Close" : "Edit"}
+                                    {isEditingThis ? "Close" : "✏ Edit"}
                                   </button>
                                 )}
                                 {canResend && (
                                   <>
                                     <button className="btn btn--ghost btn--sm" disabled={isResending} onClick={() => handleResend(row.id)}>
-                                      {isResending ? "Sending…" : "Resend"}
+                                      {isResending ? "…" : "↩ Resend"}
                                     </button>
-                                    {rStatus === "ok" && <span style={{ fontSize: 11, color: "#34d399" }}>Sent!</span>}
-                                    {rStatus && rStatus !== "ok" && <span style={{ fontSize: 11, color: "#f87171" }}>{rStatus}</span>}
+                                    {rStatus === "ok" && <span style={{ fontSize: 11, color: "#16a34a", fontWeight: 600 }}>✓ Sent</span>}
+                                    {rStatus && rStatus !== "ok" && <span style={{ fontSize: 11, color: "#dc2626" }}>{rStatus}</span>}
                                   </>
                                 )}
                                 {canCancel && (
@@ -1792,13 +1851,54 @@ function BulkModuleTab({ actions, onJobsLoad }) {
   }
 
   /* ── LIST VIEW ── */
+  const totalRows    = jobs.reduce((s, j) => s + (j.totalRows   ?? 0), 0);
+  const totalValid   = jobs.reduce((s, j) => s + (j.parsedRows  ?? 0), 0);
+  const totalInvalid = jobs.reduce((s, j) => s + (j.invalidRows ?? 0), 0);
+  const activeJobs   = jobs.filter(j => j.status === "PENDING" || j.status === "PROCESSING").length;
+
   return (
-    <div className="tab-content">
+    <div className="tab-content bulk-view-enter">
+
+      {/* Overview header */}
+      <div className="bulk-overview">
+        <div className="bulk-overview__left">
+          <div className="bulk-page-hero__icon">📦</div>
+          <div>
+            <h2 className="bulk-page-hero__title">Bulk Operations</h2>
+            <p className="bulk-page-hero__sub">Upload CSV files and track member enrollment at scale.</p>
+          </div>
+        </div>
+        <div className="bulk-overview__kpis">
+          <div className="bulk-kpi">
+            <span className="bulk-kpi__val">{jobs.length}</span>
+            <span className="bulk-kpi__lbl">Total Jobs</span>
+          </div>
+          <div className="bulk-kpi bulk-kpi--active">
+            <span className="bulk-kpi__val">{activeJobs || 0}</span>
+            <span className="bulk-kpi__lbl">Active</span>
+            {activeJobs > 0 && <span className="bulk-polling-dot" style={{ marginLeft: 4 }} />}
+          </div>
+          <div className="bulk-kpi">
+            <span className="bulk-kpi__val">{totalRows > 0 ? totalRows.toLocaleString() : "—"}</span>
+            <span className="bulk-kpi__lbl">Total Rows</span>
+          </div>
+          <div className="bulk-kpi bulk-kpi--success">
+            <span className="bulk-kpi__val">{totalValid > 0 ? totalValid.toLocaleString() : "—"}</span>
+            <span className="bulk-kpi__lbl">Valid Rows</span>
+          </div>
+          {totalInvalid > 0 && (
+            <div className="bulk-kpi bulk-kpi--warn">
+              <span className="bulk-kpi__val">{totalInvalid.toLocaleString()}</span>
+              <span className="bulk-kpi__lbl">Invalid</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {canUpload && (
         <div className="card">
           <div className="card__header">
-            <h2 className="card__title">Upload CSV</h2>
+            <h2 className="card__title">📤 Upload CSV</h2>
           </div>
           <div className="card__body">
             {uploadSuccess && (
@@ -1812,55 +1912,62 @@ function BulkModuleTab({ actions, onJobsLoad }) {
                 <span>⚠</span> {uploadError}
               </div>
             )}
-            <div className="bulk-upload-zone">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                id="bulk-file-input"
-                style={{ display: "none" }}
-                onChange={handleFileChange}
-              />
-              <label htmlFor="bulk-file-input" className="bulk-upload-label">
-                <span className="bulk-upload-icon">📄</span>
-                <span className="bulk-upload-text">
-                  {selectedFile ? selectedFile.name : "Click to choose a CSV file"}
-                </span>
-                {selectedFile && (
-                  <span className="bulk-upload-size">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+            <div className="bulk-upload-layout">
+              <div className="bulk-upload-zone">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  id="bulk-file-input"
+                  style={{ display: "none" }}
+                  onChange={handleFileChange}
+                />
+                <label htmlFor="bulk-file-input" className="bulk-upload-label">
+                  <span className="bulk-upload-icon">📄</span>
+                  <span className="bulk-upload-text">
+                    {selectedFile ? selectedFile.name : "Click to choose a CSV file"}
+                  </span>
+                  {selectedFile && (
+                    <span className="bulk-upload-size">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+                  )}
+                </label>
+                {uploading && uploadProgress && (
+                  <div className="bulk-upload-progress">
+                    <div className="bulk-progress-info">
+                      <span>Uploading…</span>
+                      <span>
+                        {(uploadProgress.loaded / (1024 * 1024)).toFixed(2)} MB
+                        {" / "}
+                        {(uploadProgress.total / (1024 * 1024)).toFixed(2)} MB
+                      </span>
+                    </div>
+                    <div className="bulk-progress-track">
+                      <div
+                        className="bulk-progress-fill"
+                        style={{ width: `${Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%` }}
+                      />
+                    </div>
+                    <div className="bulk-progress-pct">
+                      {Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%
+                    </div>
+                  </div>
                 )}
-              </label>
-              <div className="bulk-upload-meta">
-                Required columns: <code>email</code>, <code>mobile</code>, <code>name</code> &nbsp;·&nbsp; Max 10 MB
               </div>
-              {uploading && uploadProgress && (
-                <div className="bulk-upload-progress">
-                  <div className="bulk-progress-info">
-                    <span>Uploading…</span>
-                    <span>
-                      {(uploadProgress.loaded / (1024 * 1024)).toFixed(2)} MB
-                      {" / "}
-                      {(uploadProgress.total / (1024 * 1024)).toFixed(2)} MB
-                    </span>
+              <div className="bulk-upload-sidebar">
+                <div className="bulk-upload-reqs">
+                  <div className="bulk-upload-reqs__title">Required columns</div>
+                  <div className="bulk-upload-reqs__chips">
+                    <code>email</code><code>mobile</code><code>name</code>
                   </div>
-                  <div className="bulk-progress-track">
-                    <div
-                      className="bulk-progress-fill"
-                      style={{ width: `${Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%` }}
-                    />
-                  </div>
-                  <div className="bulk-progress-pct">
-                    {Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%
-                  </div>
+                  <div className="bulk-upload-reqs__note">Max 10 MB · CSV format only</div>
                 </div>
-              )}
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
                 <button
-                  className="btn btn--primary btn--sm"
+                  className="btn btn--primary btn--create-shimmer"
+                  style={{ width: "100%" }}
                   disabled={!selectedFile || uploading}
                   onClick={handleUpload}
                 >
-                  {uploading ? "Uploading…" : "Upload"}
+                  {uploading ? "Uploading…" : "Upload File"}
                 </button>
               </div>
             </div>
@@ -1879,7 +1986,7 @@ function BulkModuleTab({ actions, onJobsLoad }) {
               <span className="bulk-polling-dot" title="Polling for updates…" />
             )}
             <button className="btn btn--ghost btn--sm" onClick={loadJobs} disabled={jobsLoading}>
-              {jobsLoading ? "Refreshing…" : "Refresh"}
+              {jobsLoading ? "Refreshing…" : "↻ Refresh"}
             </button>
           </div>
         </div>
@@ -1898,31 +2005,43 @@ function BulkModuleTab({ actions, onJobsLoad }) {
             <p className="empty-state__text">No upload jobs yet. Upload a CSV to get started.</p>
           </div>
         ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>#</th><th>File</th><th>Status</th>
-                <th>Total</th><th>Parsed</th><th>Invalid</th>
-                <th>Submitted</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td className="tbl__muted">#{job.jobNumber}</td>
-                  <td><span className="tbl__bold">{job.fileName}</span></td>
-                  <td><span className={`badge ${jobStatusClass(job.status)}`}>{job.status}</span></td>
-                  <td className="tbl__muted">{job.totalRows ?? "—"}</td>
-                  <td className="tbl__muted">{job.parsedRows ?? "—"}</td>
-                  <td className="tbl__muted">{job.invalidRows ?? "—"}</td>
-                  <td className="tbl__muted">{job.createdAt ? new Date(job.createdAt).toLocaleString() : "—"}</td>
-                  <td>
-                    <button className="btn btn--ghost btn--sm" onClick={() => openDetail(job)}>View</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="bulk-jobs-list">
+            {jobs.map((job) => {
+              const isActive = job.status === "PENDING" || job.status === "PROCESSING";
+              const validPct = job.totalRows > 0 ? Math.round((job.parsedRows ?? 0) / job.totalRows * 100) : 0;
+              const hasInvalid = (job.invalidRows ?? 0) > 0;
+              const timeAgo = job.createdAt ? formatTimeAgo(new Date(job.createdAt)) : "—";
+              return (
+                <div key={job.id} className={`bulk-job-card${isActive ? " bulk-job-card--active" : ""}`}>
+                  <div className="bulk-job-card__num">#{job.jobNumber}</div>
+                  <div className="bulk-job-card__info">
+                    <span className="bulk-job-card__name">{job.fileName}</span>
+                    <div className="bulk-job-card__meta">
+                      <span>🕐 {timeAgo}</span>
+                      <span className="bulk-job-card__sep">·</span>
+                      <span>{(job.totalRows ?? 0).toLocaleString()} rows total</span>
+                      {hasInvalid && <span className="bulk-job-card__warn">⚠ {job.invalidRows} invalid</span>}
+                    </div>
+                    {(job.totalRows ?? 0) > 0 && (
+                      <div className="bulk-job-card__progress-row">
+                        <div className="bulk-job-card__bar">
+                          <div
+                            className="bulk-job-card__bar-fill"
+                            style={{ width: `${validPct}%`, background: isActive ? undefined : "#16a34a" }}
+                          />
+                        </div>
+                        <span className="bulk-job-card__pct">{validPct}% valid</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bulk-job-card__action">
+                    <span className={`badge ${jobStatusClass(job.status)}`}>{job.status}</span>
+                    <button className="btn btn--primary btn--sm" onClick={() => openDetail(job)}>View →</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

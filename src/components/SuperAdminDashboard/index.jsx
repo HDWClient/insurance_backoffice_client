@@ -2647,6 +2647,39 @@ const MODULE_ICONS = {
   CLAIM: "🗂️", PAYMENT: "💳", DOCUMENT: "📄",
 };
 
+const MODULE_COLORS = {
+  ORG:          { from: "#6366f1", to: "#818cf8", bg: "rgba(99,102,241,0.12)",   border: "rgba(99,102,241,0.28)"   },
+  CMS_USER:     { from: "#ec4899", to: "#f472b6", bg: "rgba(236,72,153,0.12)",  border: "rgba(236,72,153,0.28)"  },
+  ROLE:         { from: "#8b5cf6", to: "#a78bfa", bg: "rgba(139,92,246,0.12)",  border: "rgba(139,92,246,0.28)"  },
+  BULK:         { from: "#f59e0b", to: "#fbbf24", bg: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.28)"  },
+  AUDIT:        { from: "#14b8a6", to: "#2dd4bf", bg: "rgba(20,184,166,0.12)",  border: "rgba(20,184,166,0.28)"  },
+  REPORT:       { from: "#3b82f6", to: "#60a5fa", bg: "rgba(59,130,246,0.12)",  border: "rgba(59,130,246,0.28)"  },
+  NOTIFICATION: { from: "#f97316", to: "#fb923c", bg: "rgba(249,115,22,0.12)",  border: "rgba(249,115,22,0.28)"  },
+  SYSTEM:       { from: "#64748b", to: "#94a3b8", bg: "rgba(100,116,139,0.12)", border: "rgba(100,116,139,0.28)" },
+  POLICY:       { from: "#10b981", to: "#34d399", bg: "rgba(16,185,129,0.12)",  border: "rgba(16,185,129,0.28)"  },
+  CLAIM:        { from: "#ef4444", to: "#f87171", bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.28)"   },
+  PAYMENT:      { from: "#06b6d4", to: "#22d3ee", bg: "rgba(6,182,212,0.12)",   border: "rgba(6,182,212,0.28)"   },
+  DOCUMENT:     { from: "#84cc16", to: "#a3e635", bg: "rgba(132,204,22,0.12)",  border: "rgba(132,204,22,0.28)"  },
+  __default:    { from: "#6366f1", to: "#818cf8", bg: "rgba(99,102,241,0.12)",   border: "rgba(99,102,241,0.28)"  },
+};
+
+const MODULE_DESCRIPTIONS = {
+  ORG:          "Create and manage organizations",
+  CMS_USER:     "Backoffice operators & access control",
+  ROLE:         "Roles, permissions & policy rules",
+  BULK:         "Upload and process bulk data jobs",
+  AUDIT:        "System activity logs & audit trail",
+  REPORT:       "Analytics, reports & data exports",
+  NOTIFICATION: "Push, email & in-app notifications",
+  SYSTEM:       "System settings & configuration",
+  POLICY:       "Policy rules & compliance settings",
+  CLAIM:        "Claims processing & management",
+  PAYMENT:      "Payments, billing & transactions",
+  DOCUMENT:     "Document storage & management",
+};
+
+const TILE_BG_ROTS = [-4, 3, -3, 4, -2, 3, -4, 2];
+
 export default function SuperAdminDashboard() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
@@ -2773,47 +2806,100 @@ export default function SuperAdminDashboard() {
 
           /* ── Tile overview ── */
           <div className="sa-overview">
+            {/* Animated background blobs */}
+            <div className="sa-blob sa-blob--1" />
+            <div className="sa-blob sa-blob--2" />
+            <div className="sa-blob sa-blob--3" />
+
+            {/* Welcome header */}
             <div className="sa-overview__header">
-              <h1 className="sa-overview__title">Admin Dashboard</h1>
-              <p className="sa-overview__sub">Select a module to manage</p>
+              <div>
+                <div className="sa-greeting-pill">
+                  {(() => { const h = new Date().getHours(); return h < 12 ? "🌅 Good morning" : h < 17 ? "☀️ Good afternoon" : "🌙 Good evening"; })()}
+                </div>
+                <h1 className="sa-overview__title">
+                  {currentUser?.name?.split(" ")[0] || currentUser?.email?.split("@")[0] || "Admin"}
+                </h1>
+                <p className="sa-overview__sub">
+                  {activeOrg?.name || "All Organizations"} · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                </p>
+              </div>
+              <div className="sa-admin-badge">
+                <div className="sa-admin-badge__avatar">
+                  {(currentUser?.name || currentUser?.email || "A")[0].toUpperCase()}
+                </div>
+                <span>{currentUser?.name || currentUser?.email?.split("@")[0] || "Admin"}</span>
+              </div>
             </div>
+
+            {/* Summary stats strip */}
+            <div className="sa-summary-strip">
+              {[
+                { label: "Organizations", value: orgsCount,            icon: "🏢", color: MODULE_COLORS.ORG      },
+                { label: "Users",         value: usersTotal,           icon: "👥", color: MODULE_COLORS.CMS_USER  },
+                { label: "Roles",         value: rolesCount,           icon: "🎭", color: MODULE_COLORS.ROLE      },
+                { label: "Jobs",          value: bulkJobsCount ?? "—", icon: "📦", color: MODULE_COLORS.BULK      },
+              ].map(({ label, value, icon, color }) => (
+                <div key={label} className="sa-sum-card" style={{ "--sum-from": color.from, "--sum-to": color.to }}>
+                  <div className="sa-sum-icon" style={{ background: color.bg }}>{icon}</div>
+                  <div className="sa-sum-value">{value ?? "—"}</div>
+                  <div className="sa-sum-label">{label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modules section label */}
+            <div className="sa-section-divider">
+              <span className="sa-section-divider__label">Modules</span>
+            </div>
+
+            {/* Tiles grid */}
             <div className="sa-tiles-grid">
-              {modules.map((m) => {
-                const mActions = moduleActionMap[m] ?? new Set();
+              {modules.map((m, idx) => {
                 const icon  = MODULE_ICONS[m] ?? "🧩";
                 const label = MODULE_LABELS[m] ?? m;
+                const desc  = MODULE_DESCRIPTIONS[m];
+                const color = MODULE_COLORS[m] ?? MODULE_COLORS.__default;
+                const bgRot  = `${TILE_BG_ROTS[idx % TILE_BG_ROTS.length]}deg`;
                 let metricValue, metricLabel;
-                if (m === "ORG")           { metricValue = orgsCount;      metricLabel = "Organizations"; }
-                else if (m === "CMS_USER") { metricValue = usersTotal;     metricLabel = "Users"; }
-                else if (m === "ROLE")     { metricValue = rolesCount;     metricLabel = "Roles"; }
-                else if (m === "BULK")     { metricValue = bulkJobsCount;  metricLabel = "Jobs"; }
+                if (m === "ORG")           { metricValue = orgsCount;      metricLabel = "organizations"; }
+                else if (m === "CMS_USER") { metricValue = usersTotal;     metricLabel = "users"; }
+                else if (m === "ROLE")     { metricValue = rolesCount;     metricLabel = "roles"; }
+                else if (m === "BULK")     { metricValue = bulkJobsCount;  metricLabel = "jobs"; }
                 const hasMetric = metricValue !== null && metricValue !== undefined;
                 return (
-                  <div
-                    key={m}
-                    className="sa-tile"
-                    onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") { setActiveTab(m); dispatch(fetchMyPermissions()); }
-                    }}
-                  >
-                    <div className="sa-tile__top">
-                      <div className="sa-tile__icon">{icon}</div>
-                      <span className="sa-tile__arrow">→</span>
-                    </div>
-                    <div className="sa-tile__title">{label}</div>
-                    {hasMetric && (
-                      <div className="sa-tile__metric">
-                        <span className="sa-tile__metric-value">{metricValue}</span>
-                        <span className="sa-tile__metric-label">{metricLabel}</span>
+                  <div key={m} className="sa-tile-wrapper" style={{ "--tile-index": idx, "--tile-from": color.from, "--tile-to": color.to, "--tile-bg-rot": bgRot }}>
+                    {/* Colored background card — static tilt */}
+                    <div className="sa-tile-bg" />
+                    {/* Foreground glass card — JS tilt on hover */}
+                    <div
+                      className="sa-tile"
+                      onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") { setActiveTab(m); dispatch(fetchMyPermissions()); }
+                      }}
+                      onMouseMove={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = ((e.clientX - rect.left) / rect.width  - 0.5) * 16;
+                        const y = ((e.clientY - rect.top)  / rect.height - 0.5) * -16;
+                        e.currentTarget.style.transform = `perspective(700px) rotateX(${y}deg) rotateY(${x}deg) translateY(-5px)`;
+                      }}
+                      onMouseLeave={(e) => { e.currentTarget.style.transform = ""; }}
+                    >
+                      <div className="sa-tile__top">
+                        <div className="sa-tile__icon" style={{ background: color.bg, border: `1px solid ${color.border}` }}>{icon}</div>
+                        <span className="sa-tile__arrow">→</span>
                       </div>
-                    )}
-                    <div className="sa-tile__actions">
-                      {[...mActions].map((a) => (
-                        <span key={a} className={`action-badge action-badge--${a.toLowerCase()}`}>{a}</span>
-                      ))}
+                      <div className="sa-tile__title">{label}</div>
+                      {desc && <div className="sa-tile__desc">{desc}</div>}
+                      {hasMetric && (
+                        <div className="sa-tile__metric">
+                          <span className="sa-tile__metric-value" style={{ color: color.from }}>{metricValue}</span>
+                          <span className="sa-tile__metric-label">{metricLabel}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

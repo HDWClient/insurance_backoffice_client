@@ -1,3 +1,19 @@
+## 2026-05-13 — code-review (staged) [dashboard redesign]
+
+### [Low] bgRots array declared inside modules.map callback
+- **File**: `src/components/SuperAdminDashboard/index.jsx` — `modules.map` callback
+- **Issue**: `const bgRots = [-4, 3, -3, 4, -2, 3, -4, 2]` is re-created on every tile iteration; should be a module-level constant.
+- **Suggested fix**: Move `bgRots` outside the map (or to module scope alongside `MODULE_COLORS`).
+- **Status**: Fixed
+
+### [Low] max-width: 400px on CSS grid item leaves empty track space
+- **File**: `src/components/SuperAdminDashboard/styles.css` — `.sa-tile-wrapper`
+- **Issue**: When a grid column track is wider than 400px (e.g. 2-column layout on a wide viewport), the tile stops at 400px and leaves blank space to its right inside the track.
+- **Suggested fix**: Remove `max-width` and instead use `justify-content: start` on `.sa-tiles-grid` so the last partial row aligns left without stretching.
+- **Status**: Open
+
+---
+
 ## 2026-05-11 — code-review (staged) [bulk all-filter + audit columns]
 
 ### [Low] auditStatusClass is dead code

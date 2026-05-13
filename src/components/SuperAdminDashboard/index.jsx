@@ -81,6 +81,11 @@ function OrgModuleTab({ actions, can }) {
   const [pendingStatus, setPendingStatus] = useState(null);
   const [actioning, setActioning]     = useState(null);
 
+  // Search / filter / delete confirm
+  const [orgSearch, setOrgSearch]         = useState("");
+  const [orgStatusFilter, setOrgStatusFilter] = useState("all");
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
   useEffect(() => { dispatch(fetchOrgs()); }, [dispatch]);
   useEffect(() => () => { dispatch(clearSelectedOrg()); }, [dispatch]);
 
@@ -141,73 +146,92 @@ function OrgModuleTab({ actions, can }) {
     setActioning(null);
   };
 
+  // Computed stats + filtered list
+  const orgActiveCount    = orgs.filter((o) => (o.status ?? "active") === "active").length;
+  const orgInactiveCount  = orgs.filter((o) => o.status === "inactive").length;
+
+  const filteredOrgs = orgs.filter((o) => {
+    const q = orgSearch.toLowerCase();
+    const matchSearch = !q || o.name?.toLowerCase().includes(q) || o.slug?.toLowerCase().includes(q);
+    const matchStatus = orgStatusFilter === "all" || (orgStatusFilter === "inactive" ? o.status === "inactive" : (o.status ?? "active") === orgStatusFilter);
+    return matchSearch && matchStatus;
+  });
+
   return (
     <div className="tab-content">
 
-      {/* Read-only notice when user has no write permissions */}
+      {/* Read-only notice */}
       {canRead && !hasWriteActions && (
         <div className="org-readonly-banner">
-          You have read-only access to your organization. Contact an admin to make changes.
+          ℹ You have read-only access to organisations. Contact a super admin to make changes.
         </div>
       )}
 
-      {/* Create Organization */}
+      {/* ── Create Organisation ────────────────────────────── */}
       {canCreate && (
         <div className="card">
           <div className="card__header">
-            <h2 className="card__title">Create Organization</h2>
+            <div>
+              <h2 className="card__title" style={{ marginBottom: 3 }}>
+                <span style={{ fontSize: 16 }}>🏢</span>
+                Create Organisation
+              </h2>
+              <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                The slug is a permanent identifier and cannot be changed after creation.
+              </p>
+            </div>
           </div>
           <div className="card__body">
             <form className="form" onSubmit={handleCreate} noValidate>
 
               {saving ? (
-                /* ── Shimmer skeleton while submitting ── */
                 <>
                   <div className="create-org-form__fields">
                     <div className="form__field">
-                      <div className="shimmer-box" style={{ height: 12, width: 55, marginBottom: 8, borderRadius: 4 }} />
+                      <div className="shimmer-box" style={{ height: 12, width: 140, marginBottom: 8, borderRadius: 4 }} />
                       <div className="shimmer-box" style={{ height: 42 }} />
                     </div>
                     <div className="form__field">
-                      <div className="shimmer-box" style={{ height: 12, width: 80, marginBottom: 8, borderRadius: 4 }} />
+                      <div className="shimmer-box" style={{ height: 12, width: 110, marginBottom: 8, borderRadius: 4 }} />
                       <div className="shimmer-box" style={{ height: 42 }} />
                     </div>
                   </div>
                   <div className="create-org-form__footer">
-                    <div className="shimmer-box" style={{ height: 34, width: 90, borderRadius: 7 }} />
+                    <div className="shimmer-box" style={{ height: 34, width: 140, borderRadius: 7 }} />
                   </div>
                 </>
               ) : (
-                /* ── Form fields ── */
                 <>
                   <div className="create-org-form__fields">
                     <div className="form__field">
-                      <label className="form__label">Name *</label>
+                      <label className="form__label">Organisation Name *</label>
                       <input
                         className={`form__input${errors.name ? " form__input--err" : ""}`}
-                        value={name} placeholder="Acme Corp"
+                        value={name} placeholder="e.g. Acme Insurance"
                         onChange={(e) => { setName(e.target.value); setErrors((p) => ({ ...p, name: "" })); }}
                       />
                       {errors.name && <span className="form__err">{errors.name}</span>}
                     </div>
                     <div className="form__field">
                       <label className="form__label">
-                        Slug *{" "}
-                        <span style={{ fontWeight: 400, textTransform: "none", fontSize: 10, color: "#64748b" }}>
-                          immutable
+                        Slug *
+                        <span style={{ fontWeight: 400, textTransform: "none", fontSize: 10, color: "#ea580c", marginLeft: 6 }}>
+                          permanent · cannot be changed
                         </span>
                       </label>
                       <input
                         className={`form__input${errors.slug ? " form__input--err" : ""}`}
-                        value={slug} placeholder="acme-corp"
+                        value={slug} placeholder="e.g. acme-insurance"
                         onChange={(e) => { setSlug(e.target.value.toLowerCase()); setErrors((p) => ({ ...p, slug: "" })); }}
                       />
-                      {errors.slug && <span className="form__err">{errors.slug}</span>}
+                      {errors.slug
+                        ? <span className="form__err">{errors.slug}</span>
+                        : <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>Lowercase letters, numbers and hyphens only (2–50 chars)</span>}
                     </div>
                   </div>
                   <div className="create-org-form__footer">
                     <button className="btn btn--primary btn--sm btn--create-shimmer" type="submit">
-                      + Create
+                      Create Organisation
                     </button>
                   </div>
                 </>
@@ -218,11 +242,12 @@ function OrgModuleTab({ actions, can }) {
         </div>
       )}
 
-      {/* Organizations list */}
+      {/* ── Organisations List ─────────────────────────────── */}
       <div className="card">
         <div className="card__header">
           <h2 className="card__title">
-            Organizations
+            <span style={{ fontSize: 16 }}>🏢</span>
+            Organisations
             <span className="card__count">{orgs.length}</span>
           </h2>
           {!hasWriteActions && (
@@ -230,44 +255,158 @@ function OrgModuleTab({ actions, can }) {
           )}
         </div>
 
+        {/* ── Stats strip ── */}
+        {orgs.length > 0 && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            borderBottom: "1px solid rgba(99,102,241,0.1)",
+          }}>
+            {[
+              { key: "all",      label: "Total",    count: orgs.length,        color: "#4f46e5", bg: "rgba(99,102,241,0.05)" },
+              { key: "active",   label: "Active",   count: orgActiveCount,     color: "#16a34a", bg: "rgba(22,163,74,0.05)"  },
+              { key: "inactive", label: "Inactive", count: orgInactiveCount,   color: "#dc2626", bg: "rgba(220,38,38,0.05)" },
+            ].map(({ key, label, count, color, bg }, i) => (
+              <div
+                key={key}
+                onClick={() => setOrgStatusFilter(key)}
+                style={{
+                  padding: "10px 16px",
+                  display: "flex", flexDirection: "column", gap: 2,
+                  background: orgStatusFilter === key ? bg.replace("0.05", "0.1") : bg,
+                  borderRight: i < 2 ? "1px solid rgba(99,102,241,0.08)" : "none",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+              >
+                <span style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px", color: "#94a3b8" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Search + Filter bar ── */}
+        {orgs.length > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "10px 16px",
+            borderBottom: "1px solid rgba(99,102,241,0.08)",
+            flexWrap: "wrap",
+            background: "rgba(248,250,252,0.6)",
+          }}>
+            <div style={{ position: "relative", flex: "1", minWidth: 180, maxWidth: 300 }}>
+              <span style={{
+                position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                fontSize: 13, color: "#94a3b8", pointerEvents: "none",
+              }}>🔍</span>
+              <input
+                type="search"
+                className="form__input"
+                placeholder="Search by name or slug…"
+                value={orgSearch}
+                onChange={(e) => setOrgSearch(e.target.value)}
+                style={{ paddingLeft: 32, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[
+                { key: "all",      label: "All",      count: orgs.length },
+                { key: "active",   label: "Active",   count: orgActiveCount },
+                { key: "inactive", label: "Inactive", count: orgInactiveCount },
+              ].filter(({ key, count }) => key === "all" || count > 0).map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  className={`btn btn--ghost btn--sm${orgStatusFilter === key ? " btn--active" : ""}`}
+                  onClick={() => setOrgStatusFilter(key)}
+                  style={{ display: "flex", alignItems: "center", gap: 5 }}
+                >
+                  {label}
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "1px 6px",
+                    background: orgStatusFilter === key ? "rgba(99,102,241,0.18)" : "rgba(100,116,139,0.12)",
+                    color: orgStatusFilter === key ? "#4f46e5" : "#64748b",
+                  }}>{count}</span>
+                </button>
+              ))}
+              {(orgSearch || orgStatusFilter !== "all") && (
+                <button
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => { setOrgSearch(""); setOrgStatusFilter("all"); }}
+                  style={{ color: "#94a3b8", fontSize: 12 }}
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {errorCode && (
           <p className="status status--error" style={{ padding: "12px 24px" }}>
-            Failed to load ({errorCode})
+            Failed to load organisations ({errorCode})
           </p>
         )}
 
         {loading && orgs.length === 0 ? (
-          <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+          <div className="empty-state"><p className="empty-state__text">Loading organisations…</p></div>
         ) : orgs.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state__icon">🏢</div>
-            <p className="empty-state__text">No organizations found.</p>
+            <p className="empty-state__text">No organisations found.{canCreate ? " Use the form above to create one." : ""}</p>
+          </div>
+        ) : filteredOrgs.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state__icon">🔍</div>
+            <p className="empty-state__text">No organisations match your search or filter.</p>
+            <button
+              className="btn btn--ghost btn--sm"
+              onClick={() => { setOrgSearch(""); setOrgStatusFilter("all"); }}
+              style={{ marginTop: 4 }}
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <table className="tbl">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Slug</th>
+                <th>Organisation</th>
                 <th>Status</th>
                 <th>Default</th>
                 <th>Created</th>
-                <th>Actions</th>
+                <th style={{ width: 210 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {orgs.map((org) => {
+              {filteredOrgs.map((org) => {
                 const isActioning  = actioning === org.id;
                 const isExpanded   = expandedId === org.id;
                 const viewActive   = isExpanded && expandMode === "view";
                 const editActive   = isExpanded && expandMode === "edit";
+                const orgInitial   = (org.name || "O")[0].toUpperCase();
 
                 return (
                   <>
-                  <tr key={org.id}>
-                    <td><span className="tbl__bold">{org.name}</span></td>
+                  <tr key={org.id} className={isExpanded ? "ut-row--open" : ""}>
 
-                    <td className="tbl__mono">{org.slug}</td>
+                    {/* Organisation identity */}
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{
+                          width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                          background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 15, fontWeight: 700, color: "#fff",
+                        }}>
+                          {orgInitial}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{org.name}</div>
+                          <div style={{ fontSize: 11, fontFamily: "monospace", color: "#94a3b8", marginTop: 2 }}>{org.slug}</div>
+                        </div>
+                      </div>
+                    </td>
 
                     <td>
                       <span className={`badge badge--${org.status ?? "active"}`}>
@@ -281,66 +420,83 @@ function OrgModuleTab({ actions, can }) {
                         : <span className="tbl__muted">—</span>}
                     </td>
 
-                    <td className="tbl__muted">
-                      {org.createdAt ? new Date(org.createdAt).toLocaleDateString() : "—"}
+                    <td>
+                      {org.createdAt
+                        ? <span style={{ fontSize: 13, color: "#475569" }}>
+                            {new Date(org.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
+                        : <span className="tbl__muted">—</span>}
                     </td>
 
                     <td>
                       <div className="tbl__actions">
-                        {/* View — read-only detail panel */}
                         <button
                           className={`btn btn--ghost btn--sm${viewActive ? " btn--active" : ""}`}
                           onClick={() => openPanel(org, "view")}
+                          title="View full organisation details"
                         >
-                          {viewActive ? "Close" : "View"}
+                          {viewActive ? "✕ Close" : "Details"}
                         </button>
-
-                        {/* Edit — editable panel (canUpdate only) */}
                         {canUpdate && (
                           <button
                             className={`btn btn--ghost btn--sm${editActive ? " btn--active" : ""}`}
                             onClick={() => openPanel(org, "edit")}
+                            title="Edit name or status"
                           >
-                            {editActive ? "Close" : "Edit"}
+                            {editActive ? "✕ Close" : "Edit"}
                           </button>
                         )}
-
-                        {/* Delete */}
                         {canDelete && (
                           <button
                             className="btn btn--danger btn--sm"
                             disabled={isActioning}
-                            onClick={() => handleDelete(org.id)}
+                            onClick={() => setDeleteConfirm(org)}
+                            title={`Delete ${org.name}`}
                           >
-                            {isActioning ? "Deleting…" : "Delete"}
+                            Delete
                           </button>
                         )}
                       </div>
                     </td>
                   </tr>
 
-                  {/* ── View / Edit panel ── */}
+                  {/* ── Detail / Edit panel ── */}
                   {isExpanded && (
                     <tr key={`${org.id}-panel`} className="expand-row">
-                      <td colSpan={6}>
+                      <td colSpan={5}>
                         <div className="expand-panel">
                           <div className="expand-panel__header">
-                            <span className="expand-panel__title">
-                              {expandMode === "edit" ? "Edit Organization" : "Organization Detail"} — <strong>{org.name}</strong>
-                            </span>
+                            <div style={{
+                              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                              background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 12, fontWeight: 700, color: "#fff",
+                            }}>
+                              {orgInitial}
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <span className="expand-panel__title">
+                                {expandMode === "edit" ? "Edit Organisation" : "Organisation Details"} — <strong>{org.name}</strong>
+                              </span>
+                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                                {expandMode === "edit"
+                                  ? "Update the display name or change the operational status."
+                                  : "Full metadata snapshot — read-only view."}
+                              </div>
+                            </div>
                             {expandMode === "view" && (
                               <span className="expand-panel__readonly">Read only</span>
                             )}
                           </div>
 
                           <div className="expand-panel__body">
-                            {selectedOrgLoading && <p className="status">Loading…</p>}
+                            {selectedOrgLoading && <p className="status">Loading details…</p>}
 
                             {selectedOrgError && (
                               <div className="error-banner">
                                 <span>⚠</span>
                                 {selectedOrgError === "NOT_FOUND" || selectedOrgError === "FORBIDDEN"
-                                  ? "You do not have access to this organization's details."
+                                  ? "You do not have access to this organisation's details."
                                   : `Failed to load (${selectedOrgError})`}
                               </div>
                             )}
@@ -350,73 +506,54 @@ function OrgModuleTab({ actions, can }) {
 
                                 {/* ── Info grid ── */}
                                 <div className="org-detail-grid">
-                                  <div className="org-detail-item">
-                                    <span className="org-detail-label">ID</span>
-                                    <span className="org-detail-value tbl__mono">{selectedOrg.id}</span>
-                                  </div>
-                                  <div className="org-detail-item">
-                                    <span className="org-detail-label">Slug</span>
-                                    <span className="org-detail-value tbl__mono">{selectedOrg.slug}</span>
-                                  </div>
-                                  <div className="org-detail-item">
-                                    <span className="org-detail-label">Status</span>
-                                    <span className={`badge badge--${selectedOrg.status ?? "active"}`}>
-                                      {selectedOrg.status ?? "active"}
-                                    </span>
-                                  </div>
-                                  <div className="org-detail-item">
-                                    <span className="org-detail-label">Default</span>
-                                    <span className="org-detail-value">
-                                      {selectedOrg.isDefault
-                                        ? <span className="badge badge--system">Yes</span>
-                                        : <span className="tbl__muted">No</span>}
-                                    </span>
-                                  </div>
-                                  <div className="org-detail-item">
-                                    <span className="org-detail-label">Created</span>
-                                    <span className="org-detail-value tbl__muted">
-                                      {selectedOrg.createdAt
-                                        ? new Date(selectedOrg.createdAt).toLocaleString()
-                                        : "—"}
-                                    </span>
-                                  </div>
+                                  {[
+                                    { label: "Organisation ID", value: selectedOrg.id,   mono: true },
+                                    { label: "Slug",            value: selectedOrg.slug,  mono: true },
+                                    { label: "Status",          value: <span className={`badge badge--${selectedOrg.status ?? "active"}`}>{selectedOrg.status ?? "active"}</span> },
+                                    { label: "Default Org",     value: selectedOrg.isDefault ? <span className="badge badge--system">Yes — new users land here</span> : <span className="tbl__muted">No</span> },
+                                    { label: "Created At",      value: selectedOrg.createdAt ? new Date(selectedOrg.createdAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—", muted: true },
+                                  ].map(({ label, value, mono, muted }) => (
+                                    <div key={label} className="org-detail-item">
+                                      <span className="org-detail-label">{label}</span>
+                                      <span className={`org-detail-value${mono ? " tbl__mono" : muted ? " tbl__muted" : ""}`}>{value}</span>
+                                    </div>
+                                  ))}
                                 </div>
 
-                                {/* ── Edit form (edit mode only) ── */}
+                                {/* ── Edit form ── */}
                                 {expandMode === "edit" && (
                                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                                    <div style={{ height: 1, background: "#1e3a5f" }} />
+                                    <div style={{ height: 1, background: "rgba(99,102,241,0.15)" }} />
 
-                                    {/* Name */}
-                                    <div className="form__field">
-                                      <label className="form__label">Name</label>
-                                      <input
-                                        className="form__input"
-                                        value={editName}
-                                        onChange={(e) => setEditName(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-                                      />
+                                    <div className="create-org-form__fields">
+                                      <div className="form__field">
+                                        <label className="form__label">Organisation Name</label>
+                                        <input
+                                          className="form__input"
+                                          value={editName}
+                                          placeholder={org.name}
+                                          onChange={(e) => setEditName(e.target.value)}
+                                          onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+                                        />
+                                      </div>
+                                      <div className="form__field">
+                                        <label className="form__label">Status</label>
+                                        <select
+                                          className="form__input"
+                                          value={pendingStatus ?? (selectedOrg.status === "inactive" ? "suspended" : (selectedOrg.status ?? "active"))}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            const cur = selectedOrg.status === "inactive" ? "suspended" : (selectedOrg.status ?? "active");
+                                            setPendingStatus(val === cur ? null : val);
+                                          }}
+                                        >
+                                          <option value="active">Active — Organisation is operational</option>
+                                          <option value="suspended">Suspended — Organisation is locked out</option>
+                                        </select>
+                                      </div>
                                     </div>
 
-                                    {/* Status select */}
-                                    <div className="form__field">
-                                      <label className="form__label">Status</label>
-                                      <select
-                                        className="form__input"
-                                        value={pendingStatus ?? (selectedOrg.status === "inactive" ? "suspended" : (selectedOrg.status ?? "active"))}
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          const cur = selectedOrg.status === "inactive" ? "suspended" : (selectedOrg.status ?? "active");
-                                          setPendingStatus(val === cur ? null : val);
-                                        }}
-                                      >
-                                        <option value="active">Active</option>
-                                        <option value="suspended">Suspended</option>
-                                      </select>
-                                    </div>
-
-                                    {/* Save */}
-                                    <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                       <button
                                         className="btn btn--primary btn--sm"
                                         disabled={
@@ -426,6 +563,13 @@ function OrgModuleTab({ actions, can }) {
                                         onClick={handleSave}
                                       >
                                         {editSaving ? "Saving…" : "Save Changes"}
+                                      </button>
+                                      <button
+                                        className="btn btn--ghost btn--sm"
+                                        onClick={closePanel}
+                                        disabled={editSaving}
+                                      >
+                                        Cancel
                                       </button>
                                     </div>
                                   </div>
@@ -444,7 +588,53 @@ function OrgModuleTab({ actions, can }) {
             </tbody>
           </table>
         )}
+
+        {/* Filtered result count */}
+        {filteredOrgs.length > 0 && filteredOrgs.length < orgs.length && (
+          <div style={{
+            padding: "10px 20px",
+            borderTop: "1px solid rgba(99,102,241,0.08)",
+            fontSize: 12, color: "#64748b", textAlign: "center",
+          }}>
+            Showing {filteredOrgs.length} of {orgs.length} organisations
+          </div>
+        )}
       </div>
+
+      {/* ── Delete confirmation modal ──────────────────────── */}
+      {deleteConfirm && (
+        <div className="uc-overlay" onClick={() => !actioning && setDeleteConfirm(null)}>
+          <div className="uc-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="uc-modal__icon-wrap uc-modal__icon-wrap--danger">🗑</div>
+            <h3 className="uc-modal__title">Delete Organisation?</h3>
+            <p className="uc-modal__body">
+              Are you sure you want to permanently delete{" "}
+              <strong>{deleteConfirm.name}</strong>?{" "}
+              This will remove all associated data and cannot be undone.
+            </p>
+            <div className="uc-modal__actions">
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={() => setDeleteConfirm(null)}
+                disabled={!!actioning}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn--danger btn--sm"
+                disabled={!!actioning}
+                onClick={async () => {
+                  await handleDelete(deleteConfirm.id);
+                  setDeleteConfirm(null);
+                }}
+              >
+                {actioning === deleteConfirm.id ? "Deleting…" : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -472,6 +662,8 @@ function UserModuleTab({ actions, can }) {
   const [assignErr, setAssignErr]       = useState("");
   const [confirmAction, setConfirmAction] = useState(null); // { user, type: "toggle"|"delete" }
   const [confirming, setConfirming]      = useState(false);
+  const [searchQuery, setSearchQuery]   = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     dispatch(fetchRoles());
@@ -559,6 +751,17 @@ function UserModuleTab({ actions, can }) {
     setConfirmAction(null);
   };
 
+  const activeCount   = users.filter((u) => u.status === "active").length;
+  const inactiveCount = users.filter((u) => u.status === "inactive").length;
+  const pendingCount  = users.filter((u) => u.status === "pending_verification").length;
+
+  const filteredUsers = users.filter((u) => {
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || (u.fullName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
+    const matchStatus = statusFilter === "all" || u.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
   const initial = (u) => (u.fullName || u.email || "?")[0].toUpperCase();
 
   return (
@@ -568,7 +771,15 @@ function UserModuleTab({ actions, can }) {
       {canCreate && (
         <div className="card">
           <div className="card__header">
-            <h2 className="card__title">Invite User</h2>
+            <div>
+              <h2 className="card__title" style={{ marginBottom: 3 }}>
+                <span style={{ fontSize: 16 }}>✉️</span>
+                Invite New User
+              </h2>
+              <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                An email invitation will be sent with a link to set their password.
+              </p>
+            </div>
           </div>
           <div className="card__body">
 
@@ -576,12 +787,12 @@ function UserModuleTab({ actions, can }) {
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 padding: "10px 14px", marginBottom: 14,
-                background: "#0f2e1a", border: "1px solid #166534",
-                borderRadius: 8, color: "#34d399", fontSize: 13,
+                background: "#f0fdf4", border: "1px solid #bbf7d0",
+                borderRadius: 8, color: "#16a34a", fontSize: 13,
               }}>
                 <span>✓ {inviteSuccess}</span>
                 <button onClick={() => setInviteSuccess("")}
-                  style={{ background: "none", border: "none", color: "#34d399", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
+                  style={{ background: "none", border: "none", color: "#16a34a", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
                   ×
                 </button>
               </div>
@@ -589,27 +800,25 @@ function UserModuleTab({ actions, can }) {
 
             <form className="form" onSubmit={handleInvite} noValidate>
               <div className="form__row">
-                {/* Step 1 fields */}
                 <div className="form__field">
                   <label className="form__label">Full Name *</label>
                   <input className={`form__input${errors.fullName ? " form__input--err" : ""}`}
-                    value={fullName} placeholder="Jane Doe"
+                    value={fullName} placeholder="e.g. Jane Doe"
                     onChange={(e) => { setFullName(e.target.value); setErrors((p) => ({ ...p, fullName: "" })); }} />
                   {errors.fullName && <span className="form__err">{errors.fullName}</span>}
                 </div>
                 <div className="form__field">
-                  <label className="form__label">Email *</label>
+                  <label className="form__label">Work Email *</label>
                   <input className={`form__input${errors.email ? " form__input--err" : ""}`}
-                    value={email} placeholder="jane@org.com" type="email"
+                    value={email} placeholder="e.g. jane@company.com" type="email"
                     onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }} />
                   {errors.email && <span className="form__err">{errors.email}</span>}
                 </div>
-                {/* Step 2 — pick role to assign after invite */}
                 <div className="form__field">
                   <label className="form__label">
                     Assign Role
-                    <span style={{ fontWeight: 400, textTransform: "none", fontSize: 10, color: "#64748b", marginLeft: 4 }}>
-                      optional
+                    <span style={{ fontWeight: 400, textTransform: "none", fontSize: 10, color: "#94a3b8", marginLeft: 6 }}>
+                      optional — can be changed later
                     </span>
                   </label>
                   <select
@@ -617,16 +826,16 @@ function UserModuleTab({ actions, can }) {
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value)}
                   >
-                    <option value="">— None —</option>
+                    <option value="">— No role —</option>
                     {roles.map((r) => (
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
                   </select>
                 </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button className="btn btn--primary btn--sm" type="submit" disabled={saving}>
-                  {saving ? "Inviting…" : "+ Invite User"}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginTop: 4 }}>
+                <button className="btn btn--primary btn--sm btn--create-shimmer" type="submit" disabled={saving}>
+                  {saving ? "Sending…" : "Send Invitation"}
                 </button>
               </div>
             </form>
@@ -638,17 +847,117 @@ function UserModuleTab({ actions, can }) {
       <div className="card">
         <div className="card__header">
           <h2 className="card__title">
-            Users
+            <span style={{ fontSize: 16 }}>👥</span>
+            Manage Users
             <span className="card__count">{totalItems ?? users.length}</span>
           </h2>
         </div>
 
+        {/* ── Stats strip ── */}
+        {users.length > 0 && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            borderBottom: "1px solid rgba(99,102,241,0.1)",
+          }}>
+            {[
+              { label: "Active",   count: activeCount,   color: "#16a34a", bg: "rgba(22,163,74,0.05)" },
+              { label: "Inactive", count: inactiveCount, color: "#dc2626", bg: "rgba(220,38,38,0.05)" },
+              { label: "Pending",  count: pendingCount,  color: "#ea580c", bg: "rgba(234,88,12,0.05)" },
+            ].map(({ label, count, color, bg }, i) => (
+              <div
+                key={label}
+                onClick={() => setStatusFilter(label.toLowerCase() === "pending" ? "pending_verification" : label.toLowerCase())}
+                style={{
+                  padding: "10px 16px",
+                  display: "flex", flexDirection: "column", gap: 2,
+                  background: bg,
+                  borderRight: i < 2 ? "1px solid rgba(99,102,241,0.08)" : "none",
+                  cursor: "pointer",
+                }}
+              >
+                <span style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px", color: "#94a3b8" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Search + Filter bar ── */}
+        {users.length > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "10px 16px",
+            borderBottom: "1px solid rgba(99,102,241,0.08)",
+            flexWrap: "wrap",
+            background: "rgba(248,250,252,0.6)",
+          }}>
+            <div style={{ position: "relative", flex: "1", minWidth: 180, maxWidth: 300 }}>
+              <span style={{
+                position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                fontSize: 13, color: "#94a3b8", pointerEvents: "none",
+              }}>🔍</span>
+              <input
+                type="search"
+                className="form__input"
+                placeholder="Search by name or email…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: 32, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[
+                { key: "all",                  label: "All",     count: users.length },
+                { key: "active",               label: "Active",  count: activeCount },
+                { key: "inactive",             label: "Inactive",count: inactiveCount },
+                { key: "pending_verification", label: "Pending", count: pendingCount },
+              ].filter(({ key, count }) => key === "all" || count > 0).map(({ key, label, count }) => (
+                <button
+                  key={key}
+                  className={`btn btn--ghost btn--sm${statusFilter === key ? " btn--active" : ""}`}
+                  onClick={() => setStatusFilter(key)}
+                  style={{ display: "flex", alignItems: "center", gap: 5 }}
+                >
+                  {label}
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "1px 6px",
+                    background: statusFilter === key ? "rgba(99,102,241,0.18)" : "rgba(100,116,139,0.12)",
+                    color: statusFilter === key ? "#4f46e5" : "#64748b",
+                  }}>{count}</span>
+                </button>
+              ))}
+              {(searchQuery || statusFilter !== "all") && (
+                <button
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
+                  style={{ color: "#94a3b8", fontSize: 12 }}
+                >
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {loading && users.length === 0 ? (
-          <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+          <div className="empty-state"><p className="empty-state__text">Loading users…</p></div>
         ) : users.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state__icon">👥</div>
-            <p className="empty-state__text">No users yet</p>
+            <p className="empty-state__text">No users yet. Use the form above to invite the first user.</p>
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state__icon">🔍</div>
+            <p className="empty-state__text">No users match your search or filter.</p>
+            <button
+              className="btn btn--ghost btn--sm"
+              onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
+              style={{ marginTop: 4 }}
+            >
+              Clear filters
+            </button>
           </div>
         ) : (
           <table className="tbl">
@@ -656,14 +965,14 @@ function UserModuleTab({ actions, can }) {
               <tr>
                 <th>User</th>
                 <th>Status</th>
-                <th>Org</th>
+                <th>Organisation</th>
                 <th>Joined</th>
                 <th>Roles</th>
-                <th>Actions</th>
+                <th style={{ width: 200 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => {
+              {filteredUsers.map((u) => {
                 const assigned = userRoles[u.id] ?? [];
                 const isOpen   = expandedUser === u.id;
 
@@ -686,7 +995,7 @@ function UserModuleTab({ actions, can }) {
                           <button
                             className={`status-toggle${u.status === "active" ? " status-toggle--on" : " status-toggle--off"}`}
                             onClick={() => setConfirmAction({ user: u, type: "toggle" })}
-                            title={u.status === "active" ? "Click to deactivate" : "Click to activate"}
+                            title={u.status === "active" ? "Click to deactivate this user" : "Click to reactivate this user"}
                           >
                             <span className="status-toggle__track">
                               <span className="status-toggle__thumb" />
@@ -698,16 +1007,24 @@ function UserModuleTab({ actions, can }) {
                         )}
                       </td>
 
-                      <td className="tbl__muted">{u.orgSlug || "—"}</td>
+                      <td>
+                        {u.orgSlug
+                          ? <span style={{ fontSize: 13, color: "#0f172a", fontWeight: 500 }}>{u.orgSlug}</span>
+                          : <span className="tbl__muted">—</span>}
+                      </td>
 
-                      <td className="tbl__muted">
-                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}
+                      <td>
+                        {u.createdAt
+                          ? <span style={{ fontSize: 13, color: "#475569" }}>
+                              {new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          : <span className="tbl__muted">—</span>}
                       </td>
 
                       {/* Role chips preview */}
                       <td>
                         {assigned.length === 0 ? (
-                          <span className="tbl__muted">No roles</span>
+                          <span style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>None assigned</span>
                         ) : (
                           <div className="ut-role-chips">
                             {assigned.slice(0, 2).map((r) => (
@@ -716,7 +1033,7 @@ function UserModuleTab({ actions, can }) {
                               </span>
                             ))}
                             {assigned.length > 2 && (
-                              <span className="ut-role-more">+{assigned.length - 2}</span>
+                              <span className="ut-role-more">+{assigned.length - 2} more</span>
                             )}
                           </div>
                         )}
@@ -728,13 +1045,19 @@ function UserModuleTab({ actions, can }) {
                           <button
                             className={`btn btn--ghost btn--sm${isOpen ? " btn--active" : ""}`}
                             onClick={() => toggleExpand(u.id)}
+                            title={isOpen ? "Close role panel" : `Manage roles for ${u.fullName || u.email}`}
                           >
-                            {isOpen ? "Close" : "Roles"}
+                            {isOpen
+                              ? "✕ Close"
+                              : assigned.length > 0
+                                ? `Roles (${assigned.length})`
+                                : "Assign Role"}
                           </button>
                           {canDelete && !u.isSuperAdmin && (
                             <button
                               className="btn btn--danger btn--sm"
                               onClick={() => setConfirmAction({ user: u, type: "delete" })}
+                              title={`Permanently delete ${u.fullName || u.email}`}
                             >
                               Delete
                             </button>
@@ -750,9 +1073,16 @@ function UserModuleTab({ actions, can }) {
                           <div className="expand-panel">
                             <div className="expand-panel__header">
                               <div className="ut-avatar ut-avatar--sm">{initial(u)}</div>
-                              <span className="expand-panel__title">
-                                Role Assignments — <strong>{u.fullName || u.email}</strong>
-                              </span>
+                              <div style={{ flex: 1 }}>
+                                <span className="expand-panel__title">
+                                  Role Assignments — <strong>{u.fullName || u.email}</strong>
+                                </span>
+                                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                                  {assigned.length === 0
+                                    ? "This user has no roles. Assign one from the right panel."
+                                    : `${assigned.length} role${assigned.length > 1 ? "s" : ""} assigned — click Revoke to remove any.`}
+                                </div>
+                              </div>
                             </div>
 
                             <div className="expand-panel__body">
@@ -761,7 +1091,7 @@ function UserModuleTab({ actions, can }) {
                                 {/* Left: assigned roles */}
                                 <div className="ut-roles-section">
                                   <p className="users-panel__section-label">
-                                    Assigned Roles
+                                    Current Roles
                                     {assigned.length > 0 && (
                                       <span className="card__count" style={{ marginLeft: 8 }}>{assigned.length}</span>
                                     )}
@@ -770,6 +1100,7 @@ function UserModuleTab({ actions, can }) {
                                     <div className="ut-roles-empty">
                                       <span style={{ fontSize: 22, opacity: 0.4 }}>🎭</span>
                                       <span>No roles assigned yet</span>
+                                      <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>Use the panel on the right to assign a role</span>
                                     </div>
                                   ) : (
                                     <div className="ut-assigned-list">
@@ -779,7 +1110,7 @@ function UserModuleTab({ actions, can }) {
                                             <span className="ut-role-row__name">{r.name}</span>
                                             <div className="ut-role-row__badges">
                                               <span className={`badge badge--${r.organizationId ? "org" : "global"}`}>
-                                                {r.organizationId ? "Org" : "Global"}
+                                                {r.organizationId ? "Org-level" : "Global"}
                                               </span>
                                               <span className={`badge ${r.systemRole ? "badge--system" : "badge--custom"}`}>
                                                 {r.systemRole ? "System" : "Custom"}
@@ -789,6 +1120,7 @@ function UserModuleTab({ actions, can }) {
                                           <button
                                             className="btn btn--danger btn--sm"
                                             onClick={() => handleRevoke(u.id, r.id)}
+                                            title={`Remove "${r.name}" from ${u.fullName || u.email}`}
                                           >
                                             Revoke
                                           </button>
@@ -803,7 +1135,10 @@ function UserModuleTab({ actions, can }) {
 
                                 {/* Right: assign new role */}
                                 <div className="ut-roles-section">
-                                  <p className="users-panel__section-label">Assign New Role</p>
+                                  <p className="users-panel__section-label">Assign a Role</p>
+                                  <p style={{ fontSize: 12, color: "#64748b", margin: "-4px 0 12px" }}>
+                                    Select a role and click Assign to grant access.
+                                  </p>
                                   {assignErr && (
                                     <div className="error-banner" style={{ marginBottom: 12 }}>
                                       <span>⚠</span> {assignErr}
@@ -825,7 +1160,7 @@ function UserModuleTab({ actions, can }) {
                                           key={r.id} value={r.id}
                                           disabled={assigned.some((ar) => ar.id === r.id)}
                                         >
-                                          {r.name}{assigned.some((ar) => ar.id === r.id) ? " (assigned)" : ""}
+                                          {r.name}{assigned.some((ar) => ar.id === r.id) ? " ✓ Already assigned" : ""}
                                         </option>
                                       ))}
                                     </select>
@@ -851,6 +1186,17 @@ function UserModuleTab({ actions, can }) {
             </tbody>
           </table>
         )}
+
+        {/* Filtered result count */}
+        {filteredUsers.length > 0 && filteredUsers.length < users.length && (
+          <div style={{
+            padding: "10px 20px",
+            borderTop: "1px solid rgba(99,102,241,0.08)",
+            fontSize: 12, color: "#64748b", textAlign: "center",
+          }}>
+            Showing {filteredUsers.length} of {users.length} users
+          </div>
+        )}
       </div>
 
       {/* ── Confirmation Modal ──────────────────────────────── */}
@@ -866,15 +1212,15 @@ function UserModuleTab({ actions, can }) {
                 ? "Delete User?"
                 : confirmAction.user.status === "active"
                   ? "Deactivate User?"
-                  : "Activate User?"}
+                  : "Reactivate User?"}
             </h3>
 
             <p className="uc-modal__body">
               {confirmAction.type === "delete"
-                ? <>Are you sure you want to delete <strong>{confirmAction.user.fullName || confirmAction.user.email}</strong>? This cannot be undone.</>
+                ? <>Are you sure you want to permanently delete <strong>{confirmAction.user.fullName || confirmAction.user.email}</strong>? This action cannot be undone.</>
                 : confirmAction.user.status === "active"
-                  ? <><strong>{confirmAction.user.fullName || confirmAction.user.email}</strong> will be deactivated and lose access.</>
-                  : <><strong>{confirmAction.user.fullName || confirmAction.user.email}</strong> will be reactivated and regain access.</>}
+                  ? <><strong>{confirmAction.user.fullName || confirmAction.user.email}</strong> will be deactivated and lose all platform access immediately.</>
+                  : <><strong>{confirmAction.user.fullName || confirmAction.user.email}</strong> will be reactivated and regain their previous access level.</>}
             </p>
 
             <div className="uc-modal__actions">
@@ -883,7 +1229,7 @@ function UserModuleTab({ actions, can }) {
                 onClick={() => setConfirmAction(null)}
                 disabled={confirming}
               >
-                No, Cancel
+                Cancel
               </button>
               <button
                 className={`btn btn--sm ${confirmAction.type === "delete" ? "btn--danger" : "btn--primary"}`}
@@ -896,7 +1242,7 @@ function UserModuleTab({ actions, can }) {
                     ? "Yes, Delete"
                     : confirmAction.user.status === "active"
                       ? "Yes, Deactivate"
-                      : "Yes, Activate"}
+                      : "Yes, Reactivate"}
               </button>
             </div>
           </div>
@@ -928,6 +1274,8 @@ function RoleModuleTab({ actions, can }) {
   const [deleteErr,   setDeleteErr]   = useState({});
   const [deleteInfo,  setDeleteInfo]  = useState(null); // success acknowledgment
   const [forceDeleting, setForceDeleting] = useState(null);
+  const [roleSearch, setRoleSearch]           = useState("");
+  const [roleDeleteConfirm, setRoleDeleteConfirm] = useState(null);
 
   /* ── fetch on mount ──────────────────────────────────────── */
   useEffect(() => {
@@ -1042,6 +1390,13 @@ function RoleModuleTab({ actions, can }) {
     }
   };
 
+  /* ── computed ───────────────────────────────────────────── */
+  const systemRolesCount = roles.filter((r) => !!r.systemRole).length;
+  const customRolesCount = roles.filter((r) => !r.systemRole).length;
+  const filteredRoles = !roleSearch
+    ? roles
+    : roles.filter((r) => r.name.toLowerCase().includes(roleSearch.toLowerCase()));
+
   /* ── render ──────────────────────────────────────────────── */
   return (
     <div className="tab-content">
@@ -1050,36 +1405,50 @@ function RoleModuleTab({ actions, can }) {
       {deleteInfo && (
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 16px", marginBottom: 16,
-          background: "#0f2e1a", border: "1px solid #166534",
-          borderRadius: 8, color: "#34d399", fontSize: 13,
+          padding: "10px 14px",
+          background: "#f0fdf4", border: "1px solid #bbf7d0",
+          borderRadius: 8, color: "#16a34a", fontSize: 13,
         }}>
           <span>✓ {deleteInfo}</span>
           <button onClick={() => setDeleteInfo(null)}
-            style={{ background: "none", border: "none", color: "#34d399", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
+            style={{ background: "none", border: "none", color: "#16a34a", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
             ×
           </button>
         </div>
       )}
 
-      {/* ── Create Role (only when user has create permission) ── */}
+      {/* ── Create Role ─────────────────────────────────────── */}
       {(actions.has("CREATE") || actions.has("MANAGE")) && (
         <div className="card">
           <div className="card__header">
-            <h2 className="card__title">Create Role</h2>
+            <div>
+              <h2 className="card__title" style={{ marginBottom: 3 }}>
+                <span style={{ fontSize: 16 }}>🎭</span>
+                Create Role
+              </h2>
+              <p style={{ margin: 0, fontSize: 12, color: "#64748b" }}>
+                Custom roles can be given any combination of system permissions.
+              </p>
+            </div>
           </div>
           <div className="card__body">
             <form className="form" onSubmit={handleCreate} noValidate>
-              <div className="form__field">
-                <label className="form__label">Role Name</label>
-                <input className={`form__input${newRoleErr ? " form__input--err" : ""}`}
-                  value={newRoleName} placeholder="e.g. Compliance Officer"
-                  onChange={(e) => { setNewRoleName(e.target.value); setNewRoleErr(""); }} />
-                {newRoleErr && <span className="form__err">{newRoleErr}</span>}
+              <div className="create-org-form__fields">
+                <div className="form__field">
+                  <label className="form__label">Role Name *</label>
+                  <input
+                    className={`form__input${newRoleErr ? " form__input--err" : ""}`}
+                    value={newRoleName} placeholder="e.g. Compliance Officer"
+                    onChange={(e) => { setNewRoleName(e.target.value); setNewRoleErr(""); }}
+                  />
+                  {newRoleErr
+                    ? <span className="form__err">{newRoleErr}</span>
+                    : <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>After creating, open the Permissions panel to assign access.</span>}
+                </div>
               </div>
               <div className="create-org-form__footer">
                 <button className="btn btn--primary btn--sm btn--create-shimmer" type="submit" disabled={creating}>
-                  {creating ? "Creating…" : "+ Create"}
+                  {creating ? "Creating…" : "Create Role"}
                 </button>
               </div>
             </form>
@@ -1091,50 +1460,125 @@ function RoleModuleTab({ actions, can }) {
       <div className="card">
         <div className="card__header">
           <h2 className="card__title">
+            <span style={{ fontSize: 16 }}>🎭</span>
             All Roles
             <span className="card__count">{roles.length}</span>
           </h2>
         </div>
+
+        {/* ── Stats strip ── */}
+        {roles.length > 0 && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
+            borderBottom: "1px solid rgba(99,102,241,0.1)",
+          }}>
+            {[
+              { label: "Total",   count: roles.length,       color: "#4f46e5", bg: "rgba(99,102,241,0.05)" },
+              { label: "System",  count: systemRolesCount,   color: "#64748b", bg: "rgba(100,116,139,0.05)" },
+              { label: "Custom",  count: customRolesCount,   color: "#7c3aed", bg: "rgba(124,58,237,0.05)" },
+            ].map(({ label, count, color, bg }, i) => (
+              <div key={label} style={{
+                padding: "10px 16px", display: "flex", flexDirection: "column", gap: 2,
+                background: bg, borderRight: i < 2 ? "1px solid rgba(99,102,241,0.08)" : "none",
+              }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px", color: "#94a3b8" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Search bar ── */}
+        {roles.length > 0 && (
+          <div style={{
+            padding: "10px 16px",
+            borderBottom: "1px solid rgba(99,102,241,0.08)",
+            background: "rgba(248,250,252,0.6)",
+          }}>
+            <div style={{ position: "relative", maxWidth: 300 }}>
+              <span style={{
+                position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                fontSize: 13, color: "#94a3b8", pointerEvents: "none",
+              }}>🔍</span>
+              <input
+                type="search"
+                className="form__input"
+                placeholder="Search roles by name…"
+                value={roleSearch}
+                onChange={(e) => setRoleSearch(e.target.value)}
+                style={{ paddingLeft: 32, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
+              />
+            </div>
+          </div>
+        )}
 
         {rolesLoading && roles.length === 0 ? (
           <div className="empty-state"><p className="empty-state__text">Loading roles…</p></div>
         ) : roles.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state__icon">🎭</div>
-            <p className="empty-state__text">No roles yet</p>
+            <p className="empty-state__text">No roles yet.{(actions.has("CREATE") || actions.has("MANAGE")) ? " Use the form above to create one." : ""}</p>
+          </div>
+        ) : filteredRoles.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state__icon">🔍</div>
+            <p className="empty-state__text">No roles match your search.</p>
+            <button className="btn btn--ghost btn--sm" onClick={() => setRoleSearch("")} style={{ marginTop: 4 }}>Clear search</button>
           </div>
         ) : (
           <table className="tbl">
             <thead>
               <tr>
-                <th>Role</th><th>Scope</th><th>Type</th>
-                <th>Permissions</th><th>Actions</th>
+                <th>Role</th>
+                <th>Scope</th>
+                <th>Type</th>
+                <th>Permissions</th>
+                <th style={{ width: 220 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {roles.map((role) => {
+              {filteredRoles.map((role) => {
                 const isSystem   = !!role.systemRole;
                 const scope      = role.organizationId ? "ORG" : "GLOBAL";
                 const isRenaming = renaming?.id === role.id;
                 const permOpen   = expanded?.roleId === role.id && expanded?.panel === "permissions";
+                const permCount  = (role.permissions ?? []).length;
+                const roleInitial = role.name[0]?.toUpperCase() ?? "R";
 
                 return (
                   <>
-                    <tr key={role.id}>
-                      {/* Role name / inline rename */}
+                    <tr key={role.id} className={permOpen ? "ut-row--open" : ""}>
+
+                      {/* Role identity / inline rename */}
                       <td>
                         {isRenaming ? (
                           <div className="rename-row">
-                            <input className="form__input" autoFocus
+                            <input
+                              className="form__input" autoFocus
                               value={renaming.value}
                               onChange={(e) => setRenaming({ id: role.id, value: e.target.value })}
-                              onKeyDown={(e) => { if (e.key === "Enter") handleRename(role); if (e.key === "Escape") setRenaming(null); }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter")  handleRename(role);
+                                if (e.key === "Escape") setRenaming(null);
+                              }}
                             />
-                            <button className="btn btn--ghost btn--sm" onClick={() => handleRename(role)}>Save</button>
+                            <button className="btn btn--primary btn--sm" onClick={() => handleRename(role)}>Save</button>
                             <button className="btn btn--ghost btn--sm" onClick={() => setRenaming(null)}>✕</button>
                           </div>
                         ) : (
-                          <span className="tbl__bold">{role.name}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{
+                              width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                              background: isSystem
+                                ? "linear-gradient(135deg, #94a3b8, #64748b)"
+                                : "linear-gradient(135deg, #7c3aed, #6366f1)",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 13, fontWeight: 700, color: "#fff",
+                            }}>
+                              {roleInitial}
+                            </div>
+                            <span className="tbl__bold">{role.name}</span>
+                          </div>
                         )}
                       </td>
 
@@ -1142,34 +1586,49 @@ function RoleModuleTab({ actions, can }) {
                       <td><span className={`badge ${isSystem ? "badge--system" : "badge--custom"}`}>{isSystem ? "System" : "Custom"}</span></td>
 
                       <td>
-                        {(role.permissions ?? []).length === 0
-                          ? <span className="tbl__muted">—</span>
-                          : <>
-                            {(role.permissions ?? []).slice(0, 3).map((p) => <span key={p.id} className="perm-chip">{p.code}</span>)}
-                            {(role.permissions ?? []).length > 3 && <span className="perm-chip">+{(role.permissions ?? []).length - 3}</span>}
-                          </>
-                        }
+                        {permCount === 0 ? (
+                          <span style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>None</span>
+                        ) : (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, alignItems: "center" }}>
+                            {(role.permissions ?? []).slice(0, 3).map((p) => (
+                              <span key={p.id} className="perm-chip">{p.code}</span>
+                            ))}
+                            {permCount > 3 && (
+                              <span className="perm-chip" style={{ background: "rgba(99,102,241,0.1)", color: "#4f46e5", borderColor: "rgba(99,102,241,0.2)" }}>
+                                +{permCount - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
-                      {/* Action buttons */}
                       <td>
                         <div className="tbl__actions">
                           {!isSystem && !isRenaming && (
-                            <button className="btn btn--ghost btn--sm"
-                              onClick={() => setRenaming({ id: role.id, value: role.name })}>
-                              Edit
+                            <button
+                              className="btn btn--ghost btn--sm"
+                              onClick={() => setRenaming({ id: role.id, value: role.name })}
+                              title="Rename this role"
+                            >
+                              Rename
                             </button>
                           )}
-                          <button className={`btn btn--ghost btn--sm${permOpen ? " btn--active" : ""}`}
-                            onClick={() => openPanel(role.id, "permissions")}>
-                            Permissions
+                          <button
+                            className={`btn btn--ghost btn--sm${permOpen ? " btn--active" : ""}`}
+                            onClick={() => openPanel(role.id, "permissions")}
+                            title={`View and edit permissions for ${role.name}`}
+                          >
+                            {permOpen ? "✕ Close" : `Permissions${permCount > 0 ? ` (${permCount})` : ""}`}
                           </button>
                           {!isSystem && (
                             forceDeleting === role.id ? (
-                              <span className="tbl__muted" style={{ fontSize: 12 }}>Revoking & deleting…</span>
+                              <span className="tbl__muted" style={{ fontSize: 12 }}>Revoking…</span>
                             ) : (
-                              <button className="btn btn--danger btn--sm"
-                                onClick={() => handleDelete(role.id)}>
+                              <button
+                                className="btn btn--danger btn--sm"
+                                onClick={() => setRoleDeleteConfirm(role)}
+                                title={`Delete ${role.name}`}
+                              >
                                 Delete
                               </button>
                             )
@@ -1178,7 +1637,7 @@ function RoleModuleTab({ actions, can }) {
                       </td>
                     </tr>
 
-                    {/* ── Delete error row (non-assignment errors only) ── */}
+                    {/* ── Per-role delete error ── */}
                     {deleteErr[role.id] && (
                       <tr key={`${role.id}-derr`}>
                         <td colSpan={5} style={{ padding: "0 16px 12px", borderBottom: "none" }}>
@@ -1196,10 +1655,25 @@ function RoleModuleTab({ actions, can }) {
                         <td colSpan={5}>
                           <div className="expand-panel">
                             <div className="expand-panel__header">
-                              <span className="expand-panel__title">
-                                Permissions — <strong>{role.name}</strong>
-                              </span>
-                              {isSystem && <span className="expand-panel__readonly">System — read only</span>}
+                              <div style={{
+                                width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                                background: isSystem ? "linear-gradient(135deg, #94a3b8, #64748b)" : "linear-gradient(135deg, #7c3aed, #6366f1)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: 12, fontWeight: 700, color: "#fff",
+                              }}>
+                                {roleInitial}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <span className="expand-panel__title">
+                                  Permissions — <strong>{role.name}</strong>
+                                </span>
+                                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                                  {isSystem
+                                    ? "System roles are read-only. Permissions cannot be changed."
+                                    : "Toggle permissions on or off. Changes take effect immediately."}
+                                </div>
+                              </div>
+                              {isSystem && <span className="expand-panel__readonly">Read only</span>}
                             </div>
                             <div className="expand-panel__body">
                               {Object.keys(permsByModule).length === 0 ? (
@@ -1212,10 +1686,14 @@ function RoleModuleTab({ actions, can }) {
                                       {perms.map((perm) => {
                                         const checked = (role.permissions ?? []).some((p) => p.id === perm.id);
                                         return (
-                                          <label key={perm.id}
-                                            className={`perm-toggle${checked ? " perm-toggle--on" : ""}${isSystem ? " perm-toggle--disabled" : ""}`}>
-                                            <input type="checkbox" checked={checked} disabled={isSystem}
-                                              onChange={() => !isSystem && togglePermission(role, perm)} />
+                                          <label
+                                            key={perm.id}
+                                            className={`perm-toggle${checked ? " perm-toggle--on" : ""}${isSystem ? " perm-toggle--disabled" : ""}`}
+                                          >
+                                            <input
+                                              type="checkbox" checked={checked} disabled={isSystem}
+                                              onChange={() => !isSystem && togglePermission(role, perm)}
+                                            />
                                             {perm.code}
                                           </label>
                                         );
@@ -1229,14 +1707,58 @@ function RoleModuleTab({ actions, can }) {
                         </td>
                       </tr>
                     )}
-
                   </>
                 );
               })}
             </tbody>
           </table>
         )}
+
+        {/* Filtered result count */}
+        {filteredRoles.length > 0 && filteredRoles.length < roles.length && (
+          <div style={{
+            padding: "10px 20px",
+            borderTop: "1px solid rgba(99,102,241,0.08)",
+            fontSize: 12, color: "#64748b", textAlign: "center",
+          }}>
+            Showing {filteredRoles.length} of {roles.length} roles
+          </div>
+        )}
       </div>
+
+      {/* ── Delete confirmation modal ──────────────────────── */}
+      {roleDeleteConfirm && (
+        <div className="uc-overlay" onClick={() => !forceDeleting && setRoleDeleteConfirm(null)}>
+          <div className="uc-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="uc-modal__icon-wrap uc-modal__icon-wrap--danger">🗑</div>
+            <h3 className="uc-modal__title">Delete Role?</h3>
+            <p className="uc-modal__body">
+              Are you sure you want to delete <strong>{roleDeleteConfirm.name}</strong>?{" "}
+              All user assignments will be <strong>automatically revoked</strong> before deletion.
+              This action cannot be undone.
+            </p>
+            <div className="uc-modal__actions">
+              <button
+                className="btn btn--ghost btn--sm"
+                onClick={() => setRoleDeleteConfirm(null)}
+                disabled={!!forceDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn--danger btn--sm"
+                disabled={!!forceDeleting}
+                onClick={async () => {
+                  await handleDelete(roleDeleteConfirm.id);
+                  setRoleDeleteConfirm(null);
+                }}
+              >
+                {forceDeleting === roleDeleteConfirm.id ? "Revoking & deleting…" : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -2340,6 +2862,14 @@ function ConsumerUserModuleTab({ actions }) {
 /* ─────────────────────────────────────────────────────────── */
 const AUDIT_MODULES = ["", "ORG", "CMS_USER", "ROLE", "BULK", "USER"];
 const AUDIT_ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "READ", "UPLOAD", "ASSIGN", "REVOKE", "LOGIN", "LOGOUT"];
+const AUDIT_MODULE_LABELS = { ORG: "Organisation", CMS_USER: "CMS User", ROLE: "Role", BULK: "Bulk Ops", USER: "Consumer User" };
+const AUDIT_MODULE_COLORS = {
+  ORG:      { bg: "rgba(99,102,241,0.08)",  color: "#4f46e5",  border: "rgba(99,102,241,0.2)"  },
+  CMS_USER: { bg: "rgba(16,185,129,0.08)",  color: "#059669",  border: "rgba(16,185,129,0.2)"  },
+  ROLE:     { bg: "rgba(124,58,237,0.08)",  color: "#7c3aed",  border: "rgba(124,58,237,0.2)"  },
+  BULK:     { bg: "rgba(245,158,11,0.08)",  color: "#b45309",  border: "rgba(245,158,11,0.2)"  },
+  USER:     { bg: "rgba(20,184,166,0.08)",  color: "#0d9488",  border: "rgba(20,184,166,0.2)"  },
+};
 
 
 function AuditModuleTab({ actions }) {
@@ -2364,13 +2894,16 @@ function AuditModuleTab({ actions }) {
     setLoading(true);
     setError(null);
     try {
+      // API expects ISO datetime strings; date inputs give YYYY-MM-DD
+      const fromIso = from ? `${from}T00:00:00.000Z` : undefined;
+      const toIso   = to   ? `${to}T23:59:59.999Z`   : undefined;
       const data = await auditService.listAuditLogs({
         page: pg,
         size: 20,
         module: mod || undefined,
         action: act || undefined,
-        from:   from || undefined,
-        to:     to   || undefined,
+        from:   fromIso,
+        to:     toIso,
       });
       setReady(true);
       setLogs(data?.items ?? []);
@@ -2452,127 +2985,272 @@ function AuditModuleTab({ actions }) {
     );
   }
 
+  const hasActiveFilters = moduleFilter || actionFilter || fromDate || toDate;
+
   return (
     <div className="tab-content">
-      {/* ── Filter bar ── */}
       <div className="card">
-        <div className="card__header">
-          <h2 className="card__title">Filters</h2>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn--ghost btn--sm" onClick={handleClearFilters}>Clear</button>
-            <button className="btn btn--primary btn--sm" onClick={handleApplyFilters} disabled={loading}>
-              {loading ? "Loading…" : "Apply"}
-            </button>
-          </div>
-        </div>
-        <div className="card__body">
-          <div className="form__row" style={{ flexWrap: "wrap", gap: 12 }}>
-            <div className="form__field" style={{ minWidth: 140 }}>
-              <label className="form__label">Module</label>
-              <select className="form__input form__select" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
-                {AUDIT_MODULES.map((m) => <option key={m} value={m}>{m || "All"}</option>)}
-              </select>
-            </div>
-            <div className="form__field" style={{ minWidth: 140 }}>
-              <label className="form__label">Action</label>
-              <select className="form__input form__select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
-                {AUDIT_ACTIONS.map((a) => <option key={a} value={a}>{a || "All"}</option>)}
-              </select>
-            </div>
-            <div className="form__field" style={{ minWidth: 160 }}>
-              <label className="form__label">From</label>
-              <input type="date" className="form__input" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-            </div>
-            <div className="form__field" style={{ minWidth: 160 }}>
-              <label className="form__label">To</label>
-              <input type="date" className="form__input" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Log table ── */}
-      <div className="card">
+        {/* ── Card header ── */}
         <div className="card__header">
           <h2 className="card__title">
-            Audit Logs
-            {totalItems > 0 && <span className="card__count">{totalItems}</span>}
+            <span style={{ fontSize: 16 }}>🔍</span>
+            Audit Log
+            {totalItems > 0 && <span className="card__count">{totalItems.toLocaleString()}</span>}
           </h2>
           <button className="btn btn--ghost btn--sm" onClick={handleRefresh} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
+            {loading ? "Loading…" : "↻ Refresh"}
           </button>
         </div>
 
-        {error && (
-          <p className="status status--error" style={{ padding: "12px 24px" }}>
-            {error}
-          </p>
+        {/* ── Filter row ── */}
+        <div style={{
+          display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end",
+          padding: "10px 16px",
+          borderBottom: "1px solid rgba(99,102,241,0.08)",
+          background: "rgba(248,250,252,0.6)",
+        }}>
+          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+            <label className="form__label">Module</label>
+            <select className="form__input form__select" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
+              {AUDIT_MODULES.map((m) => (
+                <option key={m} value={m}>{m ? (AUDIT_MODULE_LABELS[m] ?? m) : "All Modules"}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+            <label className="form__label">Action</label>
+            <select className="form__input form__select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+              {AUDIT_ACTIONS.map((a) => (
+                <option key={a} value={a}>{a || "All Actions"}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+            <label className="form__label">From</label>
+            <input type="date" className="form__input" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          </div>
+          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+            <label className="form__label">To</label>
+            <input type="date" className="form__input" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          </div>
+          <div style={{ display: "flex", gap: 6, paddingBottom: 1 }}>
+            {hasActiveFilters && (
+              <button className="btn btn--ghost btn--sm" onClick={handleClearFilters} style={{ color: "#94a3b8" }}>
+                ✕ Clear
+              </button>
+            )}
+            <button className="btn btn--primary btn--sm" onClick={handleApplyFilters} disabled={loading}>
+              {loading ? "Applying…" : "Apply"}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Active filter chips ── */}
+        {hasActiveFilters && (
+          <div style={{
+            display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center",
+            padding: "5px 16px",
+            borderBottom: "1px solid rgba(99,102,241,0.07)",
+            background: "rgba(99,102,241,0.02)",
+          }}>
+            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Filters:</span>
+            {moduleFilter && (
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                background: "rgba(99,102,241,0.1)", color: "#4f46e5", border: "1px solid rgba(99,102,241,0.2)" }}>
+                {AUDIT_MODULE_LABELS[moduleFilter] ?? moduleFilter}
+              </span>
+            )}
+            {actionFilter && (
+              <span className={`action-badge action-badge--${actionFilter.toLowerCase()}`} style={{ fontSize: 10 }}>
+                {actionFilter}
+              </span>
+            )}
+            {fromDate && (
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+                background: "rgba(100,116,139,0.1)", color: "#475569", border: "1px solid #dde6f2" }}>
+                From {fromDate}
+              </span>
+            )}
+            {toDate && (
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+                background: "rgba(100,116,139,0.1)", color: "#475569", border: "1px solid #dde6f2" }}>
+                To {toDate}
+              </span>
+            )}
+          </div>
         )}
 
+        {/* ── Error ── */}
+        {error && (
+          <div className="error-banner" style={{ margin: "10px 16px" }}>
+            <span>⚠</span> {error}
+          </div>
+        )}
+
+        {/* ── Log table ── */}
         {loading && logs.length === 0 ? (
-          <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+          <div className="empty-state"><p className="empty-state__text">Loading audit logs…</p></div>
         ) : !loading && logs.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state__icon">🔍</div>
-            <p className="empty-state__text">No audit logs found for the selected filters.</p>
+            <p className="empty-state__text">
+              {hasActiveFilters ? "No logs match the current filters." : "No audit logs found."}
+            </p>
+            {hasActiveFilters && (
+              <button className="btn btn--ghost btn--sm" onClick={handleClearFilters} style={{ marginTop: 4 }}>
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
           <>
-            <table className="tbl">
+            <table className="tbl" style={{ tableLayout: "fixed", width: "100%" }}>
               <thead>
                 <tr>
-                  <th>Timestamp</th>
-                  <th>Actor</th>
-                  <th>Organization</th>
-                  <th>Action</th>
-                  <th>Target</th>
+                  <th style={{ width: 118 }}>Timestamp</th>
+                  <th style={{ width: 180 }}>Actor</th>
+                  <th style={{ width: 108 }}>Module</th>
+                  <th style={{ width: 120 }}>Action</th>
+                  <th style={{ width: 210 }}>Target</th>
                   <th>Summary</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="tbl__mono" style={{ whiteSpace: "nowrap" }}>
-                      {log.createdAt ? new Date(log.createdAt).toLocaleString() : "—"}
-                    </td>
-                    <td>
-                      <div className="ut-user-info">
-                        <span className="tbl__bold">{log.actor?.fullName ?? log.actor?.email ?? "—"}</span>
-                        {log.actor?.email && log.actor?.fullName && (
-                          <span className="tbl__muted" style={{ fontSize: 12 }}>{log.actor.email}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="tbl__muted">
-                      {log.organization?.name ?? "—"}
-                    </td>
-                    <td>
-                      {log.action && (
-                        <span className={`action-badge action-badge--${log.action.toLowerCase()}`}>
-                          {log.action}
-                        </span>
-                      )}
-                    </td>
-                    <td className="tbl__muted">
-                      {log.target?.label ?? log.target?.id ?? "—"}
-                    </td>
-                    <td className="tbl__muted" style={{ maxWidth: 320, whiteSpace: "normal", fontSize: 13 }}>
-                      {log.summary ?? "—"}
-                    </td>
-                  </tr>
-                ))}
+                {logs.map((log) => {
+                  const actorInitial = ((log.actor?.fullName ?? log.actor?.email) || "?")[0].toUpperCase();
+                  const modStyle = log.module ? AUDIT_MODULE_COLORS[log.module] : null;
+                  const ts = log.createdAt ? new Date(log.createdAt) : null;
+                  const targetText = log.target?.label ?? log.target?.id ?? "—";
+                  /* clip = reliable BFC clip; summary uses maxHeight for 2-line cap */
+                  const clip = { overflow: "hidden", width: "100%" };
+                  const summaryLineH = 1.55;
+                  const summaryMaxH  = `${Math.ceil(12 * summaryLineH * 2) + 2}px`; // ~40px
+
+                  return (
+                    <tr key={log.id}>
+                      {/* Timestamp */}
+                      <td style={{ verticalAlign: "top" }}>
+                        <div style={clip}>
+                          {ts ? (
+                            <>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>
+                                {formatTimeAgo(ts)}
+                              </div>
+                              <div className="tbl__mono" style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap", marginTop: 2 }}
+                                title={ts.toLocaleString()}>
+                                {ts.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                              </div>
+                            </>
+                          ) : "—"}
+                        </div>
+                      </td>
+
+                      {/* Actor */}
+                      <td style={{ verticalAlign: "top", textAlign: "left" }}>
+                        <div style={{ ...clip, display: "flex", alignItems: "flex-start", gap: 7 }}>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                            background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 10, fontWeight: 700, color: "#fff", marginTop: 1,
+                          }}>
+                            {actorInitial}
+                          </div>
+                          <div style={{ minWidth: 0, overflow: "hidden" }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a",
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {log.actor?.fullName ?? log.actor?.email ?? "—"}
+                            </div>
+                            {log.actor?.email && log.actor?.fullName && (
+                              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1,
+                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {log.actor.email}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Module */}
+                      <td style={{ verticalAlign: "top" }}>
+                        <div style={clip}>
+                          {log.module ? (
+                            <span style={{
+                              display: "inline-block", fontSize: 10, fontWeight: 700,
+                              padding: "3px 7px", borderRadius: 5, whiteSpace: "nowrap",
+                              background: modStyle?.bg ?? "rgba(100,116,139,0.08)",
+                              color: modStyle?.color ?? "#64748b",
+                              border: `1px solid ${modStyle?.border ?? "#dde6f2"}`,
+                            }}>
+                              {AUDIT_MODULE_LABELS[log.module] ?? log.module}
+                            </span>
+                          ) : <span className="tbl__muted">—</span>}
+                        </div>
+                      </td>
+
+                      {/* Action */}
+                      <td style={{ verticalAlign: "top" }}>
+                        <div style={clip}>
+                          {log.action ? (
+                            <span className={`action-badge action-badge--${log.action.toLowerCase()}`}
+                              style={{ whiteSpace: "nowrap" }}>
+                              {log.action}
+                            </span>
+                          ) : "—"}
+                        </div>
+                      </td>
+
+                      {/* Target */}
+                      <td style={{ verticalAlign: "top" }}>
+                        <div style={clip} title={targetText}>
+                          <span style={{
+                            display: "block", fontSize: 12, color: "#64748b",
+                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }}>
+                            {targetText}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Summary — capped to 2 lines via maxHeight on the BFC div */}
+                      <td style={{ verticalAlign: "top", textAlign: "left" }}>
+                        <div style={{
+                          ...clip,
+                          maxHeight: summaryMaxH,
+                          overflow: "hidden",
+                          fontSize: 12,
+                          color: "#475569",
+                          lineHeight: summaryLineH,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                        }} title={log.summary ?? ""}>
+                          {log.summary ?? "—"}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
+            {/* ── Pagination ── */}
             {totalPages > 1 && (
-              <div className="bulk-pagination">
-                <button className="btn btn--ghost btn--sm" disabled={page === 0} onClick={() => handlePageChange(page - 1)}>
-                  ← Prev
-                </button>
-                <span className="tbl__muted">Page {page + 1} of {totalPages}</span>
-                <button className="btn btn--ghost btn--sm" disabled={page >= totalPages - 1} onClick={() => handlePageChange(page + 1)}>
-                  Next →
-                </button>
+              <div className="bulk-pagination" style={{ justifyContent: "space-between" }}>
+                <span className="tbl__muted" style={{ fontSize: 12 }}>
+                  Page {page + 1} of {totalPages}
+                  {totalItems > 0 && ` · ${totalItems.toLocaleString()} entries`}
+                </span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="btn btn--ghost btn--sm" disabled={page === 0}
+                    onClick={() => handlePageChange(0)} title="First page">«</button>
+                  <button className="btn btn--ghost btn--sm" disabled={page === 0}
+                    onClick={() => handlePageChange(page - 1)}>← Prev</button>
+                  <button className="btn btn--ghost btn--sm" disabled={page >= totalPages - 1}
+                    onClick={() => handlePageChange(page + 1)}>Next →</button>
+                  <button className="btn btn--ghost btn--sm" disabled={page >= totalPages - 1}
+                    onClick={() => handlePageChange(totalPages - 1)} title="Last page">»</button>
+                </div>
               </div>
             )}
           </>
@@ -2879,42 +3557,23 @@ export default function SuperAdminDashboard() {
   };
 
   return (
-    <div className="sa-dashboard-page" style={{ color: "#e2e8f0", fontFamily: "inherit" }}>
+    <div className="sa-dashboard-page">
 
-      {/* Header */}
-      <header style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 32px", height: 60,
-        background: "rgba(22,28,55,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
-        borderBottom: "1px solid rgba(165,180,252,0.15)",
-        position: "sticky", top: 0, zIndex: 10,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img
-            src={kinkoLogo}
-            alt="Kinko"
-            style={{
-              height: 34,
-              objectFit: "contain",
-              background: "#f1f5f9",
-              borderRadius: 10,
-              padding: "8px 20px",
-              display: "block",
-            }}
-          />
+      {/* Navbar */}
+      <header className="sa-navbar">
+        <div className="sa-navbar__brand">
+          <img src={kinkoLogo} alt="Kinko" className="sa-navbar__logo" />
+          <span className="sa-navbar__divider" />
+          <span className="sa-navbar__app">Admin Portal</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div className="sa-navbar__right">
           <OrgDropdown />
-          <span style={{ fontSize: 13, color: "#94a3b8" }}>{currentUser?.email ?? ""}</span>
-          <button onClick={handleLogout} style={{
-            background: "none", border: "1px solid rgba(165,180,252,0.25)", color: "#94a3b8",
-            borderRadius: 7, padding: "6px 14px", fontSize: 13, cursor: "pointer",
-          }}>Logout</button>
+          <button className="sa-navbar__logout" onClick={handleLogout}>Sign out</button>
         </div>
       </header>
 
       {/* Main content — tile overview or module detail */}
-      <div style={{ padding: "32px 40px", maxWidth: 1200, margin: "0 auto" }}>
+      <div style={{ padding: "20px 28px", maxWidth: 1440, margin: "0 auto" }}>
         {meLoading ? (
           <p className="status">Loading permissions…</p>
         ) : meError ? (
@@ -2925,20 +3584,11 @@ export default function SuperAdminDashboard() {
 
           /* ── Tile overview ── */
           <div className="sa-overview">
-            {/* Animated background blobs */}
-            <div className="sa-blob sa-blob--1" />
-            <div className="sa-blob sa-blob--2" />
-            <div className="sa-blob sa-blob--3" />
 
-            {/* Welcome header */}
+            {/* Page header */}
             <div className="sa-overview__header">
               <div>
-                <div className="sa-greeting-pill">
-                  {(() => { const h = new Date().getHours(); return h < 12 ? "🌅 Good morning" : h < 17 ? "☀️ Good afternoon" : "🌙 Good evening"; })()}
-                </div>
-                <h1 className="sa-overview__title">
-                  {currentUser?.name?.split(" ")[0] || currentUser?.email?.split("@")[0] || "Admin"}
-                </h1>
+                <h1 className="sa-overview__title">Admin Dashboard</h1>
                 <p className="sa-overview__sub">
                   {activeOrg?.name || "All Organizations"} · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
                 </p>
@@ -2947,20 +3597,22 @@ export default function SuperAdminDashboard() {
                 <div className="sa-admin-badge__avatar">
                   {(currentUser?.name || currentUser?.email || "A")[0].toUpperCase()}
                 </div>
-                <span>{currentUser?.name || currentUser?.email?.split("@")[0] || "Admin"}</span>
+                <div className="sa-admin-badge__info">
+                  <span className="sa-admin-badge__name">{currentUser?.name || currentUser?.email?.split("@")[0] || "Admin"}</span>
+                  <span className="sa-admin-badge__role">Super Admin</span>
+                </div>
               </div>
             </div>
 
-            {/* Summary stats strip */}
+            {/* Summary stats */}
             <div className="sa-summary-strip">
               {[
-                { label: "Organizations", value: orgsCount,            icon: "🏢", color: MODULE_COLORS.ORG      },
-                { label: "Users",         value: usersTotal,           icon: "👥", color: MODULE_COLORS.CMS_USER  },
-                { label: "Roles",         value: rolesCount,           icon: "🎭", color: MODULE_COLORS.ROLE      },
-                { label: "Jobs",          value: bulkJobsCount ?? "—", icon: "📦", color: MODULE_COLORS.BULK      },
-              ].map(({ label, value, icon, color }) => (
-                <div key={label} className="sa-sum-card" style={{ "--sum-from": color.from, "--sum-to": color.to }}>
-                  <div className="sa-sum-icon" style={{ background: color.bg }}>{icon}</div>
+                { label: "Organizations", value: orgsCount,            accent: "#3b82f6" },
+                { label: "Users",         value: usersTotal,           accent: "#8b5cf6" },
+                { label: "Roles",         value: rolesCount,           accent: "#10b981" },
+                { label: "Jobs",          value: bulkJobsCount ?? "—", accent: "#f59e0b" },
+              ].map(({ label, value, accent }) => (
+                <div key={label} className="sa-sum-card" style={{ "--sum-accent": accent }}>
                   <div className="sa-sum-value">{value ?? "—"}</div>
                   <div className="sa-sum-label">{label}</div>
                 </div>
@@ -2978,8 +3630,6 @@ export default function SuperAdminDashboard() {
                 const icon  = MODULE_ICONS[m] ?? "🧩";
                 const label = MODULE_LABELS[m] ?? m;
                 const desc  = MODULE_DESCRIPTIONS[m];
-                const color = MODULE_COLORS[m] ?? MODULE_COLORS.__default;
-                const bgRot  = `${TILE_BG_ROTS[idx % TILE_BG_ROTS.length]}deg`;
                 let metricValue, metricLabel;
                 if (m === "ORG")           { metricValue = orgsCount;      metricLabel = "organizations"; }
                 else if (m === "CMS_USER") { metricValue = usersTotal;     metricLabel = "users"; }
@@ -2987,10 +3637,7 @@ export default function SuperAdminDashboard() {
                 else if (m === "BULK")     { metricValue = bulkJobsCount;  metricLabel = "jobs"; }
                 const hasMetric = metricValue !== null && metricValue !== undefined;
                 return (
-                  <div key={m} className="sa-tile-wrapper" style={{ "--tile-index": idx, "--tile-from": color.from, "--tile-to": color.to, "--tile-bg-rot": bgRot }}>
-                    {/* Colored background card — static tilt */}
-                    <div className="sa-tile-bg" />
-                    {/* Foreground glass card — JS tilt on hover */}
+                  <div key={m} className="sa-tile-wrapper" style={{ "--tile-index": idx }}>
                     <div
                       className="sa-tile"
                       onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
@@ -2999,23 +3646,16 @@ export default function SuperAdminDashboard() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") { setActiveTab(m); dispatch(fetchMyPermissions()); }
                       }}
-                      onMouseMove={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const x = ((e.clientX - rect.left) / rect.width  - 0.5) * 16;
-                        const y = ((e.clientY - rect.top)  / rect.height - 0.5) * -16;
-                        e.currentTarget.style.transform = `perspective(700px) rotateX(${y}deg) rotateY(${x}deg) translateY(-5px)`;
-                      }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = ""; }}
                     >
                       <div className="sa-tile__top">
-                        <div className="sa-tile__icon" style={{ background: color.bg, border: `1px solid ${color.border}` }}>{icon}</div>
+                        <div className="sa-tile__icon">{icon}</div>
                         <span className="sa-tile__arrow">→</span>
                       </div>
                       <div className="sa-tile__title">{label}</div>
                       {desc && <div className="sa-tile__desc">{desc}</div>}
                       {hasMetric && (
                         <div className="sa-tile__metric">
-                          <span className="sa-tile__metric-value" style={{ color: color.from }}>{metricValue}</span>
+                          <span className="sa-tile__metric-value">{metricValue}</span>
                           <span className="sa-tile__metric-label">{metricLabel}</span>
                         </div>
                       )}

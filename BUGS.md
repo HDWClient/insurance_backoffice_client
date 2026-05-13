@@ -1,3 +1,19 @@
+## 2026-05-13 — code-review (staged) [dashboard tab redesign]
+
+### [Low] `clip` / `summaryMaxH` recreated inside logs.map() on every iteration
+- **File**: `src/components/SuperAdminDashboard/index.jsx:3126–3128`
+- **Issue**: `clip`, `summaryLineH`, and `summaryMaxH` are declared inside the `.map()` callback, so new object/string values are allocated for every log row on every render. Harmless but wasteful.
+- **Suggested fix**: Move the three declarations above the `logs.map(...)` call.
+- **Status**: Open
+
+### [Low] `sa-tiles-grid: repeat(3,1fr)` has no medium-screen breakpoint
+- **File**: `src/components/SuperAdminDashboard/styles.css:2013`
+- **Issue**: Only one responsive breakpoint exists (`max-width: 640px → 1 col`). On 641px–900px viewports 3 columns gives ~213px-wide tiles which are too narrow.
+- **Suggested fix**: Add `@media (max-width: 900px) { .sa-tiles-grid { grid-template-columns: repeat(2, 1fr); } }`.
+- **Status**: Open
+
+---
+
 ## 2026-05-13 — code-review (staged) [bulk operations redesign]
 
 ### [Low] completedJobs computed but never used

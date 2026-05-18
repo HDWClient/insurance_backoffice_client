@@ -665,6 +665,8 @@ function UserModuleTab({ actions, can }) {
   const [searchQuery, setSearchQuery]   = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [activePanel, setActivePanel]   = useState("active");
+  const [reInviting, setReInviting]     = useState({}); // { [userId]: true }
+  const [reInviteStatus, setReInviteStatus] = useState({}); // { [userId]: "success"|"error" }
 
   useEffect(() => {
     dispatch(fetchRoles());
@@ -737,6 +739,17 @@ function UserModuleTab({ actions, can }) {
 
   const handleRevoke = async (userId, roleId) => {
     await dispatch(apiRevokeRole({ userId, roleId }));
+  };
+
+  const handleReInvite = async (u) => {
+    setReInviting((p) => ({ ...p, [u.id]: true }));
+    setReInviteStatus((p) => ({ ...p, [u.id]: null }));
+    const res = await dispatch(apiInviteUser({ fullName: u.fullName || "", email: u.email }));
+    setReInviting((p) => ({ ...p, [u.id]: false }));
+    setReInviteStatus((p) => ({
+      ...p,
+      [u.id]: apiInviteUser.rejected.match(res) ? "error" : "success",
+    }));
   };
 
   const handleConfirm = async () => {
@@ -1330,14 +1343,29 @@ function UserModuleTab({ actions, can }) {
                           )}
                         </td>
                         <td>
-                          {canDelete && (
-                            <button
-                              className="btn btn--primary btn--sm"
-                              onClick={() => setConfirmAction({ user: u, type: "toggle" })}
-                              title={`Restore ${u.fullName || u.email}`}
-                            >
-                              Restore
-                            </button>
+                          {canCreate && (
+                            reInviteStatus[u.id] === "success" ? (
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", gap: 4,
+                                fontSize: 12, fontWeight: 600, color: "#16a34a",
+                              }}>
+                                ✓ Invite sent
+                              </span>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <button
+                                  className="btn btn--primary btn--sm"
+                                  disabled={reInviting[u.id]}
+                                  onClick={() => handleReInvite(u)}
+                                  title={`Re-invite ${u.fullName || u.email}`}
+                                >
+                                  {reInviting[u.id] ? "Sending…" : "Re-invite"}
+                                </button>
+                                {reInviteStatus[u.id] === "error" && (
+                                  <span style={{ fontSize: 11, color: "#dc2626" }}>Failed, retry</span>
+                                )}
+                              </div>
+                            )
                           )}
                         </td>
                       </tr>

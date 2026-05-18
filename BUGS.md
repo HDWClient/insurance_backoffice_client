@@ -1,3 +1,17 @@
+## 2026-05-18 — code-review (staged) [re-invite deleted users]: clean (2 low findings, no action needed)
+
+### [Low] apiReviveUser / handleConfirm else-branch now dead code
+- **File**: `src/components/SuperAdminDashboard/index.jsx:749`
+- **Issue**: Toggle fires only for active users; the `apiReviveUser` branch in `handleConfirm` is unreachable since Restore was replaced by Re-invite.
+- **Suggested fix**: Remove the else branch and `apiReviveUser` import when convenient.
+- **Status**: Open
+
+### [Low] Empty fullName on re-invite
+- **File**: `src/components/SuperAdminDashboard/index.jsx:744`
+- **Issue**: `u.fullName || ""` passes empty string if deleted user has no name; API may reject with validation error.
+- **Suggested fix**: Acceptable — error state surfaces the failure to the user.
+- **Status**: Open
+
 ## 2026-05-18 — code-review (staged) [deleted-users panel tab]
 
 ### [Medium] Missing key on React fragment in filteredMainUsers.map

@@ -1,3 +1,11 @@
+## 2026-05-18 — code-review (staged) [deleted-users panel tab]
+
+### [Medium] Missing key on React fragment in filteredMainUsers.map
+- **File**: `src/components/SuperAdminDashboard/index.jsx` (UserModuleTab)
+- **Issue**: The `<>` fragment wrapping each table row + role-panel row lacked a `key`, triggering React reconciliation warnings and potential mismatches on deletions.
+- **Suggested fix**: Use `<Fragment key={u.id}>` from named import.
+- **Status**: Fixed
+
 ## 2026-05-13 — code-review (staged) [dashboard tab redesign]
 
 ### [Low] `clip` / `summaryMaxH` recreated inside logs.map() on every iteration

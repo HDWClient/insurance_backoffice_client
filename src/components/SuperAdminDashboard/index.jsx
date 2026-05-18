@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import * as userService from "../../services/userService";
 import * as roleService from "../../services/roleService";
 import * as bulkService from "../../services/bulkService";
@@ -664,6 +664,7 @@ function UserModuleTab({ actions, can }) {
   const [confirming, setConfirming]      = useState(false);
   const [searchQuery, setSearchQuery]   = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [activePanel, setActivePanel]   = useState("active");
 
   useEffect(() => {
     dispatch(fetchRoles());
@@ -751,15 +752,21 @@ function UserModuleTab({ actions, can }) {
     setConfirmAction(null);
   };
 
-  const activeCount   = users.filter((u) => u.status === "active").length;
-  const inactiveCount = users.filter((u) => u.status === "inactive").length;
-  const pendingCount  = users.filter((u) => u.status === "pending_verification").length;
+  const activeCount  = users.filter((u) => u.status === "active").length;
+  const pendingCount = users.filter((u) => u.status === "pending_verification").length;
+  const deletedUsers = users.filter((u) => u.status === "inactive");
+  const mainUsers    = users.filter((u) => u.status !== "inactive");
 
-  const filteredUsers = users.filter((u) => {
+  const filteredMainUsers = mainUsers.filter((u) => {
     const q = searchQuery.toLowerCase();
-    const matchSearch = !q || (u.fullName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
+    const matchSearch = !q || u.fullName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
     const matchStatus = statusFilter === "all" || u.status === statusFilter;
     return matchSearch && matchStatus;
+  });
+
+  const filteredDeletedUsers = deletedUsers.filter((u) => {
+    const q = searchQuery.toLowerCase();
+    return !q || u.fullName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
   });
 
   const initial = (u) => (u.fullName || u.email || "?")[0].toUpperCase();
@@ -853,349 +860,493 @@ function UserModuleTab({ actions, can }) {
           </h2>
         </div>
 
-        {/* ── Stats strip ── */}
+        {/* ── Inner panel tabs ── */}
         {users.length > 0 && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            borderBottom: "1px solid rgba(99,102,241,0.1)",
-          }}>
+          <div style={{ display: "flex", borderBottom: "1px solid rgba(99,102,241,0.1)" }}>
             {[
-              { label: "Active",   count: activeCount,   color: "#16a34a", bg: "rgba(22,163,74,0.05)" },
-              { label: "Inactive", count: inactiveCount, color: "#dc2626", bg: "rgba(220,38,38,0.05)" },
-              { label: "Pending",  count: pendingCount,  color: "#ea580c", bg: "rgba(234,88,12,0.05)" },
-            ].map(({ label, count, color, bg }, i) => (
-              <div
-                key={label}
-                onClick={() => setStatusFilter(label.toLowerCase() === "pending" ? "pending_verification" : label.toLowerCase())}
+              { key: "active",  label: "Active Users",  count: mainUsers.length,    activeColor: "#4f46e5", activeBg: "rgba(99,102,241,0.06)" },
+              { key: "deleted", label: "Deleted Users", count: deletedUsers.length, activeColor: "#dc2626", activeBg: "rgba(220,38,38,0.04)" },
+            ].map(({ key, label, count, activeColor, activeBg }) => (
+              <button
+                key={key}
+                onClick={() => { setActivePanel(key); setSearchQuery(""); setStatusFilter("all"); setExpandedUser(null); }}
                 style={{
-                  padding: "10px 16px",
-                  display: "flex", flexDirection: "column", gap: 2,
-                  background: bg,
-                  borderRight: i < 2 ? "1px solid rgba(99,102,241,0.08)" : "none",
+                  padding: "10px 20px",
+                  fontSize: 13, fontWeight: 600,
+                  background: activePanel === key ? activeBg : "transparent",
+                  borderBottom: activePanel === key ? `2px solid ${activeColor}` : "2px solid transparent",
+                  borderTop: "none", borderLeft: "none", borderRight: "none",
+                  color: activePanel === key ? activeColor : "#64748b",
                   cursor: "pointer",
+                  transition: "all 0.15s",
                 }}
               >
-                <span style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
-                <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px", color: "#94a3b8" }}>{label}</span>
-              </div>
+                {label}
+                <span style={{
+                  marginLeft: 6, fontSize: 11, fontWeight: 700, borderRadius: 20,
+                  padding: "1px 6px",
+                  background: activePanel === key ? `${activeColor}22` : "rgba(100,116,139,0.12)",
+                  color: activePanel === key ? activeColor : "#64748b",
+                }}>{count}</span>
+              </button>
             ))}
           </div>
         )}
 
-        {/* ── Search + Filter bar ── */}
-        {users.length > 0 && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 12,
-            padding: "10px 16px",
-            borderBottom: "1px solid rgba(99,102,241,0.08)",
-            flexWrap: "wrap",
-            background: "rgba(248,250,252,0.6)",
-          }}>
-            <div style={{ position: "relative", flex: "1", minWidth: 180, maxWidth: 300 }}>
-              <span style={{
-                position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
-                fontSize: 13, color: "#94a3b8", pointerEvents: "none",
-              }}>🔍</span>
-              <input
-                type="search"
-                className="form__input"
-                placeholder="Search by name or email…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ paddingLeft: 32, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {[
-                { key: "all",                  label: "All",     count: users.length },
-                { key: "active",               label: "Active",  count: activeCount },
-                { key: "inactive",             label: "Inactive",count: inactiveCount },
-                { key: "pending_verification", label: "Pending", count: pendingCount },
-              ].filter(({ key, count }) => key === "all" || count > 0).map(({ key, label, count }) => (
-                <button
-                  key={key}
-                  className={`btn btn--ghost btn--sm${statusFilter === key ? " btn--active" : ""}`}
-                  onClick={() => setStatusFilter(key)}
-                  style={{ display: "flex", alignItems: "center", gap: 5 }}
-                >
-                  {label}
+        {activePanel === "active" ? (
+          <>
+            {/* ── Stats strip ── */}
+            {mainUsers.length > 0 && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                borderBottom: "1px solid rgba(99,102,241,0.1)",
+              }}>
+                {[
+                  { label: "Active",  count: activeCount,  color: "#16a34a", bg: "rgba(22,163,74,0.05)",  key: "active" },
+                  { label: "Pending", count: pendingCount, color: "#ea580c", bg: "rgba(234,88,12,0.05)", key: "pending_verification" },
+                ].map(({ label, count, color, bg, key }, i) => (
+                  <div
+                    key={label}
+                    onClick={() => setStatusFilter(key)}
+                    style={{
+                      padding: "10px 16px",
+                      display: "flex", flexDirection: "column", gap: 2,
+                      background: bg,
+                      borderRight: i < 1 ? "1px solid rgba(99,102,241,0.08)" : "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span style={{ fontSize: 22, fontWeight: 700, color, lineHeight: 1 }}>{count}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px", color: "#94a3b8" }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Search + Filter bar ── */}
+            {mainUsers.length > 0 && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "10px 16px",
+                borderBottom: "1px solid rgba(99,102,241,0.08)",
+                flexWrap: "wrap",
+                background: "rgba(248,250,252,0.6)",
+              }}>
+                <div style={{ position: "relative", flex: "1", minWidth: 180, maxWidth: 300 }}>
                   <span style={{
-                    fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "1px 6px",
-                    background: statusFilter === key ? "rgba(99,102,241,0.18)" : "rgba(100,116,139,0.12)",
-                    color: statusFilter === key ? "#4f46e5" : "#64748b",
-                  }}>{count}</span>
-                </button>
-              ))}
-              {(searchQuery || statusFilter !== "all") && (
+                    position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                    fontSize: 13, color: "#94a3b8", pointerEvents: "none",
+                  }}>🔍</span>
+                  <input
+                    type="search"
+                    className="form__input"
+                    placeholder="Search by name or email…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{ paddingLeft: 32, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[
+                    { key: "all",                  label: "All",     count: mainUsers.length },
+                    { key: "active",               label: "Active",  count: activeCount },
+                    { key: "pending_verification", label: "Pending", count: pendingCount },
+                  ].filter(({ key, count }) => key === "all" || count > 0).map(({ key, label, count }) => (
+                    <button
+                      key={key}
+                      className={`btn btn--ghost btn--sm${statusFilter === key ? " btn--active" : ""}`}
+                      onClick={() => setStatusFilter(key)}
+                      style={{ display: "flex", alignItems: "center", gap: 5 }}
+                    >
+                      {label}
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "1px 6px",
+                        background: statusFilter === key ? "rgba(99,102,241,0.18)" : "rgba(100,116,139,0.12)",
+                        color: statusFilter === key ? "#4f46e5" : "#64748b",
+                      }}>{count}</span>
+                    </button>
+                  ))}
+                  {(searchQuery || statusFilter !== "all") && (
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
+                      style={{ color: "#94a3b8", fontSize: 12 }}
+                    >
+                      ✕ Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {loading && mainUsers.length === 0 ? (
+              <div className="empty-state"><p className="empty-state__text">Loading users…</p></div>
+            ) : mainUsers.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state__icon">👥</div>
+                <p className="empty-state__text">No active users yet. Use the form above to invite the first user.</p>
+              </div>
+            ) : filteredMainUsers.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state__icon">🔍</div>
+                <p className="empty-state__text">No users match your search or filter.</p>
                 <button
                   className="btn btn--ghost btn--sm"
                   onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
-                  style={{ color: "#94a3b8", fontSize: 12 }}
+                  style={{ marginTop: 4 }}
                 >
-                  ✕ Clear
+                  Clear filters
                 </button>
-              )}
-            </div>
-          </div>
-        )}
+              </div>
+            ) : (
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Organisation</th>
+                    <th>Joined</th>
+                    <th>Roles</th>
+                    <th style={{ width: 200 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredMainUsers.map((u) => {
+                    const assigned = userRoles[u.id] ?? [];
+                    const isOpen   = expandedUser === u.id;
 
-        {loading && users.length === 0 ? (
-          <div className="empty-state"><p className="empty-state__text">Loading users…</p></div>
-        ) : users.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state__icon">👥</div>
-            <p className="empty-state__text">No users yet. Use the form above to invite the first user.</p>
-          </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state__icon">🔍</div>
-            <p className="empty-state__text">No users match your search or filter.</p>
-            <button
-              className="btn btn--ghost btn--sm"
-              onClick={() => { setSearchQuery(""); setStatusFilter("all"); }}
-              style={{ marginTop: 4 }}
-            >
-              Clear filters
-            </button>
-          </div>
-        ) : (
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Status</th>
-                <th>Organisation</th>
-                <th>Joined</th>
-                <th>Roles</th>
-                <th style={{ width: 200 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((u) => {
-                const assigned = userRoles[u.id] ?? [];
-                const isOpen   = expandedUser === u.id;
-
-                return (
-                  <>
-                    <tr key={u.id} className={isOpen ? "ut-row--open" : ""}>
-                      {/* User identity */}
-                      <td>
-                        <div className="ut-user-cell">
-                          <div className="ut-avatar">{initial(u)}</div>
-                          <div className="ut-user-info">
-                            <span className="ut-user-name">{u.fullName || "—"}</span>
-                            <span className="ut-user-email">{u.email}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        {canDelete && !u.isSuperAdmin && (u.status === "active" || u.status === "inactive") ? (
-                          <button
-                            className={`status-toggle${u.status === "active" ? " status-toggle--on" : " status-toggle--off"}`}
-                            onClick={() => setConfirmAction({ user: u, type: "toggle" })}
-                            title={u.status === "active" ? "Click to deactivate this user" : "Click to reactivate this user"}
-                          >
-                            <span className="status-toggle__track">
-                              <span className="status-toggle__thumb" />
-                            </span>
-                            <span className="status-toggle__label">{u.status}</span>
-                          </button>
-                        ) : (
-                          <span className={`badge badge--${u.status}`}>{u.status ?? "—"}</span>
-                        )}
-                      </td>
-
-                      <td>
-                        {u.orgSlug
-                          ? <span style={{ fontSize: 13, color: "#0f172a", fontWeight: 500 }}>{u.orgSlug}</span>
-                          : <span className="tbl__muted">—</span>}
-                      </td>
-
-                      <td>
-                        {u.createdAt
-                          ? <span style={{ fontSize: 13, color: "#475569" }}>
-                              {new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                            </span>
-                          : <span className="tbl__muted">—</span>}
-                      </td>
-
-                      {/* Role chips preview */}
-                      <td>
-                        {assigned.length === 0 ? (
-                          <span style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>None assigned</span>
-                        ) : (
-                          <div className="ut-role-chips">
-                            {assigned.slice(0, 2).map((r) => (
-                              <span key={r.id} className={`badge ${r.systemRole ? "badge--system" : "badge--custom"}`}>
-                                {r.name}
-                              </span>
-                            ))}
-                            {assigned.length > 2 && (
-                              <span className="ut-role-more">+{assigned.length - 2} more</span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td>
-                        <div className="tbl__actions">
-                          <button
-                            className={`btn btn--ghost btn--sm${isOpen ? " btn--active" : ""}`}
-                            onClick={() => toggleExpand(u.id)}
-                            title={isOpen ? "Close role panel" : `Manage roles for ${u.fullName || u.email}`}
-                          >
-                            {isOpen
-                              ? "✕ Close"
-                              : assigned.length > 0
-                                ? `Roles (${assigned.length})`
-                                : "Assign Role"}
-                          </button>
-                          {canDelete && !u.isSuperAdmin && (
-                            <button
-                              className="btn btn--danger btn--sm"
-                              onClick={() => setConfirmAction({ user: u, type: "delete" })}
-                              title={`Permanently delete ${u.fullName || u.email}`}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* ── Role assignment panel ── */}
-                    {isOpen && (
-                      <tr key={`${u.id}-roles`} className="expand-row">
-                        <td colSpan={6}>
-                          <div className="expand-panel">
-                            <div className="expand-panel__header">
-                              <div className="ut-avatar ut-avatar--sm">{initial(u)}</div>
-                              <div style={{ flex: 1 }}>
-                                <span className="expand-panel__title">
-                                  Role Assignments — <strong>{u.fullName || u.email}</strong>
-                                </span>
-                                <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                                  {assigned.length === 0
-                                    ? "This user has no roles. Assign one from the right panel."
-                                    : `${assigned.length} role${assigned.length > 1 ? "s" : ""} assigned — click Revoke to remove any.`}
-                                </div>
+                    return (
+                      <Fragment key={u.id}>
+                        <tr className={isOpen ? "ut-row--open" : ""}>
+                          <td>
+                            <div className="ut-user-cell">
+                              <div className="ut-avatar">{initial(u)}</div>
+                              <div className="ut-user-info">
+                                <span className="ut-user-name">{u.fullName || "—"}</span>
+                                <span className="ut-user-email">{u.email}</span>
                               </div>
                             </div>
+                          </td>
 
-                            <div className="expand-panel__body">
-                              <div className="ut-roles-layout">
+                          <td>
+                            {canDelete && !u.isSuperAdmin && u.status === "active" ? (
+                              <button
+                                className="status-toggle status-toggle--on"
+                                onClick={() => setConfirmAction({ user: u, type: "toggle" })}
+                                title="Click to deactivate this user"
+                              >
+                                <span className="status-toggle__track">
+                                  <span className="status-toggle__thumb" />
+                                </span>
+                                <span className="status-toggle__label">{u.status}</span>
+                              </button>
+                            ) : (
+                              <span className={`badge badge--${u.status}`}>{u.status ?? "—"}</span>
+                            )}
+                          </td>
 
-                                {/* Left: assigned roles */}
-                                <div className="ut-roles-section">
-                                  <p className="users-panel__section-label">
-                                    Current Roles
-                                    {assigned.length > 0 && (
-                                      <span className="card__count" style={{ marginLeft: 8 }}>{assigned.length}</span>
-                                    )}
-                                  </p>
-                                  {assigned.length === 0 ? (
-                                    <div className="ut-roles-empty">
-                                      <span style={{ fontSize: 22, opacity: 0.4 }}>🎭</span>
-                                      <span>No roles assigned yet</span>
-                                      <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>Use the panel on the right to assign a role</span>
-                                    </div>
-                                  ) : (
-                                    <div className="ut-assigned-list">
-                                      {assigned.map((r) => (
-                                        <div key={r.id} className="ut-role-row">
-                                          <div className="ut-role-row__info">
-                                            <span className="ut-role-row__name">{r.name}</span>
-                                            <div className="ut-role-row__badges">
-                                              <span className={`badge badge--${r.organizationId ? "org" : "global"}`}>
-                                                {r.organizationId ? "Org-level" : "Global"}
-                                              </span>
-                                              <span className={`badge ${r.systemRole ? "badge--system" : "badge--custom"}`}>
-                                                {r.systemRole ? "System" : "Custom"}
-                                              </span>
-                                            </div>
-                                          </div>
-                                          <button
-                                            className="btn btn--danger btn--sm"
-                                            onClick={() => handleRevoke(u.id, r.id)}
-                                            title={`Remove "${r.name}" from ${u.fullName || u.email}`}
-                                          >
-                                            Revoke
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
+                          <td>
+                            {u.orgSlug
+                              ? <span style={{ fontSize: 13, color: "#0f172a", fontWeight: 500 }}>{u.orgSlug}</span>
+                              : <span className="tbl__muted">—</span>}
+                          </td>
 
-                                {/* Divider */}
-                                <div className="ut-roles-divider" />
+                          <td>
+                            {u.createdAt
+                              ? <span style={{ fontSize: 13, color: "#475569" }}>
+                                  {new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                                </span>
+                              : <span className="tbl__muted">—</span>}
+                          </td>
 
-                                {/* Right: assign new role */}
-                                <div className="ut-roles-section">
-                                  <p className="users-panel__section-label">Assign a Role</p>
-                                  <p style={{ fontSize: 12, color: "#64748b", margin: "-4px 0 12px" }}>
-                                    Select a role and click Assign to grant access.
-                                  </p>
-                                  {assignErr && (
-                                    <div className="error-banner" style={{ marginBottom: 12 }}>
-                                      <span>⚠</span> {assignErr}
-                                    </div>
-                                  )}
-                                  <div className="form__field" style={{ marginBottom: 12 }}>
-                                    <label className="form__label">Select Role</label>
-                                    <select
-                                      className="form__input form__select"
-                                      value={selectedRole[u.id] ?? ""}
-                                      onChange={(e) => {
-                                        setAssignErr("");
-                                        setSelectedRole((p) => ({ ...p, [u.id]: e.target.value }));
-                                      }}
-                                    >
-                                      <option value="">— Choose a role —</option>
-                                      {roles.map((r) => (
-                                        <option
-                                          key={r.id} value={r.id}
-                                          disabled={assigned.some((ar) => ar.id === r.id)}
-                                        >
-                                          {r.name}{assigned.some((ar) => ar.id === r.id) ? " ✓ Already assigned" : ""}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <button
-                                    className="btn btn--primary btn--sm"
-                                    disabled={assigning || !selectedRole[u.id] || assigned.some((ar) => ar.id === selectedRole[u.id])}
-                                    onClick={() => handleAssign(u.id)}
-                                  >
-                                    {assigning ? "Assigning…" : "Assign Role"}
-                                  </button>
-                                </div>
-
+                          <td>
+                            {assigned.length === 0 ? (
+                              <span style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>None assigned</span>
+                            ) : (
+                              <div className="ut-role-chips">
+                                {assigned.slice(0, 2).map((r) => (
+                                  <span key={r.id} className={`badge ${r.systemRole ? "badge--system" : "badge--custom"}`}>
+                                    {r.name}
+                                  </span>
+                                ))}
+                                {assigned.length > 2 && (
+                                  <span className="ut-role-more">+{assigned.length - 2} more</span>
+                                )}
                               </div>
+                            )}
+                          </td>
+
+                          <td>
+                            <div className="tbl__actions">
+                              <button
+                                className={`btn btn--ghost btn--sm${isOpen ? " btn--active" : ""}`}
+                                onClick={() => toggleExpand(u.id)}
+                                title={isOpen ? "Close role panel" : `Manage roles for ${u.fullName || u.email}`}
+                              >
+                                {isOpen
+                                  ? "✕ Close"
+                                  : assigned.length > 0
+                                    ? `Roles (${assigned.length})`
+                                    : "Assign Role"}
+                              </button>
+                              {canDelete && !u.isSuperAdmin && (
+                                <button
+                                  className="btn btn--danger btn--sm"
+                                  onClick={() => setConfirmAction({ user: u, type: "delete" })}
+                                  title={`Delete ${u.fullName || u.email}`}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* ── Role assignment panel ── */}
+                        {isOpen && (
+                          <tr key={`${u.id}-roles`} className="expand-row">
+                            <td colSpan={6}>
+                              <div className="expand-panel">
+                                <div className="expand-panel__header">
+                                  <div className="ut-avatar ut-avatar--sm">{initial(u)}</div>
+                                  <div style={{ flex: 1 }}>
+                                    <span className="expand-panel__title">
+                                      Role Assignments — <strong>{u.fullName || u.email}</strong>
+                                    </span>
+                                    <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                                      {assigned.length === 0
+                                        ? "This user has no roles. Assign one from the right panel."
+                                        : `${assigned.length} role${assigned.length > 1 ? "s" : ""} assigned — click Revoke to remove any.`}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="expand-panel__body">
+                                  <div className="ut-roles-layout">
+
+                                    <div className="ut-roles-section">
+                                      <p className="users-panel__section-label">
+                                        Current Roles
+                                        {assigned.length > 0 && (
+                                          <span className="card__count" style={{ marginLeft: 8 }}>{assigned.length}</span>
+                                        )}
+                                      </p>
+                                      {assigned.length === 0 ? (
+                                        <div className="ut-roles-empty">
+                                          <span style={{ fontSize: 22, opacity: 0.4 }}>🎭</span>
+                                          <span>No roles assigned yet</span>
+                                          <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>Use the panel on the right to assign a role</span>
+                                        </div>
+                                      ) : (
+                                        <div className="ut-assigned-list">
+                                          {assigned.map((r) => (
+                                            <div key={r.id} className="ut-role-row">
+                                              <div className="ut-role-row__info">
+                                                <span className="ut-role-row__name">{r.name}</span>
+                                                <div className="ut-role-row__badges">
+                                                  <span className={`badge badge--${r.organizationId ? "org" : "global"}`}>
+                                                    {r.organizationId ? "Org-level" : "Global"}
+                                                  </span>
+                                                  <span className={`badge ${r.systemRole ? "badge--system" : "badge--custom"}`}>
+                                                    {r.systemRole ? "System" : "Custom"}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <button
+                                                className="btn btn--danger btn--sm"
+                                                onClick={() => handleRevoke(u.id, r.id)}
+                                                title={`Remove "${r.name}" from ${u.fullName || u.email}`}
+                                              >
+                                                Revoke
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="ut-roles-divider" />
+
+                                    <div className="ut-roles-section">
+                                      <p className="users-panel__section-label">Assign a Role</p>
+                                      <p style={{ fontSize: 12, color: "#64748b", margin: "-4px 0 12px" }}>
+                                        Select a role and click Assign to grant access.
+                                      </p>
+                                      {assignErr && (
+                                        <div className="error-banner" style={{ marginBottom: 12 }}>
+                                          <span>⚠</span> {assignErr}
+                                        </div>
+                                      )}
+                                      <div className="form__field" style={{ marginBottom: 12 }}>
+                                        <label className="form__label">Select Role</label>
+                                        <select
+                                          className="form__input form__select"
+                                          value={selectedRole[u.id] ?? ""}
+                                          onChange={(e) => {
+                                            setAssignErr("");
+                                            setSelectedRole((p) => ({ ...p, [u.id]: e.target.value }));
+                                          }}
+                                        >
+                                          <option value="">— Choose a role —</option>
+                                          {roles.map((r) => (
+                                            <option
+                                              key={r.id} value={r.id}
+                                              disabled={assigned.some((ar) => ar.id === r.id)}
+                                            >
+                                              {r.name}{assigned.some((ar) => ar.id === r.id) ? " ✓ Already assigned" : ""}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <button
+                                        className="btn btn--primary btn--sm"
+                                        disabled={assigning || !selectedRole[u.id] || assigned.some((ar) => ar.id === selectedRole[u.id])}
+                                        onClick={() => handleAssign(u.id)}
+                                      >
+                                        {assigning ? "Assigning…" : "Assign Role"}
+                                      </button>
+                                    </div>
+
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+
+            {filteredMainUsers.length > 0 && filteredMainUsers.length < mainUsers.length && (
+              <div style={{
+                padding: "10px 20px",
+                borderTop: "1px solid rgba(99,102,241,0.08)",
+                fontSize: 12, color: "#64748b", textAlign: "center",
+              }}>
+                Showing {filteredMainUsers.length} of {mainUsers.length} users
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* ── Deleted Users Panel ── */}
+            {deletedUsers.length > 0 && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "10px 16px",
+                borderBottom: "1px solid rgba(99,102,241,0.08)",
+                background: "rgba(248,250,252,0.6)",
+              }}>
+                <div style={{ position: "relative", flex: "1", minWidth: 180, maxWidth: 300 }}>
+                  <span style={{
+                    position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                    fontSize: 13, color: "#94a3b8", pointerEvents: "none",
+                  }}>🔍</span>
+                  <input
+                    type="search"
+                    className="form__input"
+                    placeholder="Search deleted users…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{ paddingLeft: 32, paddingTop: 7, paddingBottom: 7, fontSize: 13 }}
+                  />
+                </div>
+                {searchQuery && (
+                  <button
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => setSearchQuery("")}
+                    style={{ color: "#94a3b8", fontSize: 12 }}
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
+            )}
+
+            {deletedUsers.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state__icon">🗑️</div>
+                <p className="empty-state__text">No deleted users.</p>
+              </div>
+            ) : filteredDeletedUsers.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state__icon">🔍</div>
+                <p className="empty-state__text">No deleted users match your search.</p>
+                <button className="btn btn--ghost btn--sm" onClick={() => setSearchQuery("")} style={{ marginTop: 4 }}>Clear search</button>
+              </div>
+            ) : (
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Organisation</th>
+                    <th>Joined</th>
+                    <th>Roles</th>
+                    <th style={{ width: 120 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDeletedUsers.map((u) => {
+                    const assigned = userRoles[u.id] ?? [];
+                    return (
+                      <tr key={u.id} style={{ opacity: 0.75 }}>
+                        <td>
+                          <div className="ut-user-cell">
+                            <div className="ut-avatar" style={{ background: "#e2e8f0", color: "#64748b" }}>{initial(u)}</div>
+                            <div className="ut-user-info">
+                              <span className="ut-user-name" style={{ color: "#94a3b8" }}>{u.fullName || "—"}</span>
+                              <span className="ut-user-email">{u.email}</span>
                             </div>
                           </div>
                         </td>
+                        <td>
+                          {u.orgSlug
+                            ? <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>{u.orgSlug}</span>
+                            : <span className="tbl__muted">—</span>}
+                        </td>
+                        <td>
+                          {u.createdAt
+                            ? <span style={{ fontSize: 13, color: "#94a3b8" }}>
+                                {new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                            : <span className="tbl__muted">—</span>}
+                        </td>
+                        <td>
+                          {assigned.length === 0 ? (
+                            <span style={{ fontSize: 12, color: "#94a3b8", fontStyle: "italic" }}>None</span>
+                          ) : (
+                            <div className="ut-role-chips">
+                              {assigned.slice(0, 2).map((r) => (
+                                <span key={r.id} className={`badge ${r.systemRole ? "badge--system" : "badge--custom"}`} style={{ opacity: 0.7 }}>
+                                  {r.name}
+                                </span>
+                              ))}
+                              {assigned.length > 2 && <span className="ut-role-more">+{assigned.length - 2}</span>}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {canDelete && (
+                            <button
+                              className="btn btn--primary btn--sm"
+                              onClick={() => setConfirmAction({ user: u, type: "toggle" })}
+                              title={`Restore ${u.fullName || u.email}`}
+                            >
+                              Restore
+                            </button>
+                          )}
+                        </td>
                       </tr>
-                    )}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-
-        {/* Filtered result count */}
-        {filteredUsers.length > 0 && filteredUsers.length < users.length && (
-          <div style={{
-            padding: "10px 20px",
-            borderTop: "1px solid rgba(99,102,241,0.08)",
-            fontSize: 12, color: "#64748b", textAlign: "center",
-          }}>
-            Showing {filteredUsers.length} of {users.length} users
-          </div>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </div>
 

@@ -1,5 +1,11 @@
 ## 2026-05-20 — code-review (staged): clean
 
+No findings. Fixes paginated-API-response crashes (orgs/roles/permissions/userRoles/getUsersForRole), adds Array.isArray guards in RoleModuleTab selectors and getUsersForRole helper, removes "Super Admin" label from dashboard badge, adds full e2e Playwright test suite (tests/e2e/).
+
+---
+
+## 2026-05-20 — code-review (staged): clean
+
 No findings. Adds `test-results/` to `.gitignore` and removes previously tracked test artifact files from git. Resolves the open finding from 2026-05-04.
 
 ---

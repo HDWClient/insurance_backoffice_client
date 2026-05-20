@@ -1441,8 +1441,8 @@ function UserModuleTab({ actions, can }) {
 /* ─────────────────────────────────────────────────────────── */
 function RoleModuleTab({ actions, can }) {
   const dispatch = useDispatch();
-  const { roles, permissions, loading: rolesLoading } = useSelector((s) => s.roles);
-  const { items: users, userRoles }                   = useSelector((s) => s.users);
+  const { roles = [], permissions = [], loading: rolesLoading } = useSelector((s) => s.roles);
+  const { items: users = [], userRoles = {} }                   = useSelector((s) => s.users);
   const { currentUser }                               = useApp();
 
   const [newRoleName, setNewRoleName] = useState("");
@@ -1479,7 +1479,7 @@ function RoleModuleTab({ actions, can }) {
 
   const getUsersForRole = (roleId) =>
     Object.entries(userRoles)
-      .filter(([, list]) => list.some((r) => r.id === roleId))
+      .filter(([, list]) => Array.isArray(list) && list.some((r) => r.id === roleId))
       .map(([uid]) => users.find((u) => u.id === uid))
       .filter(Boolean);
 
@@ -3778,7 +3778,6 @@ export default function SuperAdminDashboard() {
                 </div>
                 <div className="sa-admin-badge__info">
                   <span className="sa-admin-badge__name">{currentUser?.name || currentUser?.email?.split("@")[0] || "Admin"}</span>
-                  <span className="sa-admin-badge__role">Super Admin</span>
                 </div>
               </div>
             </div>

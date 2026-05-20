@@ -4,7 +4,9 @@ import AxiosUtils from "../utils/AxiosUtils";
 // Super admin: all orgs. Org user: their own org only.
 export async function listOrgs() {
   const res = await AxiosUtils.get("/orgs");
-  return res.data.data;
+  const data = res.data.data;
+  // API may return a plain array or a paginated envelope { items, ... }
+  return Array.isArray(data) ? data : (data?.items ?? []);
 }
 
 // ── GET /orgs/{id} ─────────────────────────────────────────

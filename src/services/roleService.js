@@ -4,14 +4,16 @@ import AxiosUtils from "../utils/AxiosUtils";
 // All system permission codes — use id values when assigning to roles
 export async function listPermissions() {
   const res = await AxiosUtils.get("/permissions");
-  return res.data.data; // [{ id, code, module, action }]
+  const data = res.data.data;
+  return Array.isArray(data) ? data : (data?.items ?? []);
 }
 
 // ── GET /roles ─────────────────────────────────────────────
 // All roles (system + custom) in the current org
 export async function listRoles() {
   const res = await AxiosUtils.get("/roles");
-  return res.data.data;
+  const data = res.data.data;
+  return Array.isArray(data) ? data : (data?.items ?? []);
 }
 
 // ── POST /roles ────────────────────────────────────────────
@@ -38,7 +40,8 @@ export async function deleteRole(id) {
 // Returns list of cms-users assigned to this role
 export async function getRoleUsers(roleId) {
   const res = await AxiosUtils.get(`/roles/${roleId}/cms-users`);
-  return res.data.data;
+  const data = res.data.data;
+  return Array.isArray(data) ? data : (data?.items ?? []);
 }
 
 // ── DELETE /roles/{id}/cms-users ──────────────────────────

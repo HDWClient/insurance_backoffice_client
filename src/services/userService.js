@@ -47,7 +47,8 @@ export async function reviveUser(id) {
 // ── GET /cms-users/{userId}/roles ──────────────────────────
 export async function getUserRoles(userId) {
   const res = await AxiosUtils.get(`${CMS_USERS_BASE}/${userId}/roles`);
-  return res.data.data;
+  const data = res.data.data;
+  return Array.isArray(data) ? data : (data?.items ?? []);
 }
 
 // ── POST /cms-users/{userId}/roles ─────────────────────────

@@ -1,3 +1,9 @@
+## 2026-05-20 — code-review (staged): clean
+
+No findings. Adds `test-results/` to `.gitignore` and removes previously tracked test artifact files from git. Resolves the open finding from 2026-05-04.
+
+---
+
 ## 2026-05-18 — code-review (staged) [re-invite deleted users]: clean (2 low findings, no action needed)
 
 ### [Low] apiReviveUser / handleConfirm else-branch now dead code
@@ -256,7 +262,7 @@ No new findings. This change collapses the 2-step invite flow into a single page
 - **File**: `playwright-report/` and `test-results/` directories
 - **Issue**: These are generated output files (screenshots, webm videos, trace zips, HTML reports). Committing them bloats the repo with binary data and they'll be regenerated on every test run. They belong in `.gitignore`.
 - **Suggested fix**: Add `playwright-report/` and `test-results/` to `.gitignore`, then unstage them.
-- **Status**: Open
+- **Status**: Fixed (2026-05-20 — added `test-results/` to .gitignore and removed tracked files)
 
 ### [Low] playwright.config.js: headless: false committed
 - **File**: `playwright.config.js:13`

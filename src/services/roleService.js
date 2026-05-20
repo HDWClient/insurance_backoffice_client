@@ -5,7 +5,7 @@ import AxiosUtils from "../utils/AxiosUtils";
 export async function listPermissions() {
   const res = await AxiosUtils.get("/permissions");
   const data = res.data.data;
-  return Array.isArray(data) ? data : (data?.items ?? []);
+  return Array.isArray(data) ? data : (data?.content ?? data?.items ?? []);
 }
 
 // ── GET /roles ─────────────────────────────────────────────
@@ -13,7 +13,7 @@ export async function listPermissions() {
 export async function listRoles() {
   const res = await AxiosUtils.get("/roles");
   const data = res.data.data;
-  return Array.isArray(data) ? data : (data?.items ?? []);
+  return Array.isArray(data) ? data : (data?.content ?? data?.items ?? []);
 }
 
 // ── POST /roles ────────────────────────────────────────────
@@ -41,7 +41,7 @@ export async function deleteRole(id) {
 export async function getRoleUsers(roleId) {
   const res = await AxiosUtils.get(`/roles/${roleId}/cms-users`);
   const data = res.data.data;
-  return Array.isArray(data) ? data : (data?.items ?? []);
+  return Array.isArray(data) ? data : (data?.content ?? data?.items ?? []);
 }
 
 // ── DELETE /roles/{id}/cms-users ──────────────────────────

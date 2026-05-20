@@ -6,7 +6,7 @@ export async function listOrgs() {
   const res = await AxiosUtils.get("/orgs");
   const data = res.data.data;
   // API may return a plain array or a paginated envelope { items, ... }
-  return Array.isArray(data) ? data : (data?.items ?? []);
+  return Array.isArray(data) ? data : (data?.content ?? data?.items ?? []);
 }
 
 // ── GET /orgs/{id} ─────────────────────────────────────────

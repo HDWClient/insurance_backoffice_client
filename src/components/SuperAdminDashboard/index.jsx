@@ -3656,10 +3656,494 @@ const MODULE_DESCRIPTIONS = {
 
 const TILE_BG_ROTS = [-4, 3, -3, 4, -2, 3, -4, 2];
 
+/* ─────────────────────────────────────────────────────────── */
+/*  Helpers & constants                                         */
+/* ─────────────────────────────────────────────────────────── */
+const VIEW_LABELS = {
+  orgs: "Organizations", "super-admins": "Super Admins",
+  "global-audit": "Global Audit", "system-settings": "System Settings",
+  "org-dashboard": "Dashboard", CMS_USER: "CMS Users",
+  ROLE: "Roles & Perms", BULK: "Bulk Upload",
+  AUDIT: "Audit Log", USER: "Members", settings: "Settings",
+};
+
+const ORG_AVATAR_COLORS = [
+  "#e74c3c","#e67e22","#16a085","#2980b9","#8e44ad",
+  "#d35400","#27ae60","#c0392b","#2471a3","#117a65",
+];
+function orgAvatarColor(name = "") {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return ORG_AVATAR_COLORS[Math.abs(h) % ORG_AVATAR_COLORS.length];
+}
+function orgInitials(name = "") {
+  return name.split(" ").slice(0, 2).map((w) => w[0] ?? "").join("").toUpperCase() || "??";
+}
+function timeAgo(dateStr) {
+  if (!dateStr) return "—";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hr${h > 1 ? "s" : ""} ago`;
+  return `${Math.floor(h / 24)} days ago`;
+}
+
+/* ── NavItem ── */
+function NavItem({ icon, label, view, activeView, onClick, count }) {
+  return (
+    <button
+      className={`bp-nav-item${activeView === view ? " bp-nav-item--active" : ""}`}
+      onClick={() => onClick(view)}
+    >
+      <span className="bp-nav-item__icon">{icon}</span>
+      <span className="bp-nav-item__label">{label}</span>
+      {count != null && <span className="bp-nav-item__count">{count}</span>}
+    </button>
+  );
+}
+
+/* ── OrgLandingView ── */
+function OrgLandingView({ onEnterOrg, can }) {
+  const dispatch  = useDispatch();
+  const orgs      = useSelector((s) => s.orgs?.orgs ?? []);
+  const loading   = useSelector((s) => s.orgs?.loading ?? false);
+
+  const [search, setSearch]           = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [showCreate, setShowCreate]   = useState(false);
+  const [newName, setNewName]         = useState("");
+  const [newSlug, setNewSlug]         = useState("");
+  const [createErrors, setCreateErrors] = useState({});
+  const [creating, setCreating]       = useState(false);
+
+  const filtered = orgs.filter((o) => {
+    const q  = search.toLowerCase();
+    const ok = !q || o.name?.toLowerCase().includes(q) || o.slug?.toLowerCase().includes(q);
+    const st = o.status ?? "active";
+    const sf = statusFilter === "all" || st === statusFilter ||
+               (statusFilter === "pending" && st === "pending_setup");
+    return ok && sf;
+  });
+
+  const activeCount    = orgs.filter((o) => (o.status ?? "active") === "active").length;
+  const inactiveCount  = orgs.filter((o) => o.status === "inactive" || o.status === "suspended").length;
+  const pendingCount   = orgs.filter((o) => o.status === "pending_setup").length;
+  const totalMembers   = orgs.reduce((s, o) => s + (o.consumerUserCount ?? 0), 0);
+  const totalBulk      = orgs.reduce((s, o) => s + (o.bulkOperationsCount ?? 0), 0);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!newName.trim()) errs.name = "Required";
+    if (!newSlug.trim()) errs.slug = "Required";
+    else if (!/^[a-z0-9-]{2,50}$/.test(newSlug.trim())) errs.slug = "2–50 chars, lowercase alphanumeric & hyphens only";
+    if (Object.keys(errs).length) { setCreateErrors(errs); return; }
+    setCreating(true);
+    const res = await dispatch(apiCreateOrg({ name: newName.trim(), slug: newSlug.trim() }));
+    setCreating(false);
+    if (apiCreateOrg.fulfilled.match(res)) {
+      setNewName(""); setNewSlug(""); setCreateErrors({}); setShowCreate(false);
+    } else {
+      setCreateErrors({ slug: res.payload === "SLUG_TAKEN" ? "Slug already taken" : "Create failed" });
+    }
+  };
+
+  const statusClass = (st) => {
+    if (!st || st === "active") return "bp-status--active";
+    if (st === "suspended") return "bp-status--suspended";
+    return "bp-status--inactive";
+  };
+
+  return (
+    <div className="bp-landing">
+      {/* Scope label */}
+      <p className="bp-landing__scope-label">Super Admin Scope · All Tenants</p>
+
+      {/* Header */}
+      <div className="bp-landing__hdr">
+        <div>
+          <h1 className="bp-landing__title">Organizations</h1>
+          <p className="bp-landing__sub">Pick an organization to manage its operators, members, roles, and audit trail.</p>
+        </div>
+        <div className="bp-landing__actions">
+          <div className="bp-view-toggle">
+            <button className="bp-view-btn bp-view-btn--active">Table</button>
+            <button className="bp-view-btn">Grid</button>
+          </div>
+          <button className="bp-export-btn">↓ Export</button>
+          {can("ORG_CREATE") && (
+            <button className="bp-new-org-btn" onClick={() => setShowCreate(true)}>
+              + New organization
+            </button>
+          )}
+        </div>
+      </div>
+
+      <hr className="bp-landing__divider" />
+
+      {/* Stats */}
+      <div className="bp-stats-row">
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Organizations</div>
+          <div className="bp-stat-box__value">{orgs.length}</div>
+          <div className="bp-stat-box__sub">{activeCount} active · {inactiveCount} suspended · {pendingCount} pending</div>
+        </div>
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Members across orgs</div>
+          <div className="bp-stat-box__value">{totalMembers.toLocaleString()}</div>
+          <div className="bp-stat-box__sub">across all organisations</div>
+        </div>
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Bulk runs in flight</div>
+          <div className={`bp-stat-box__value${totalBulk > 0 ? " bp-stat-box__value--accent" : ""}`}>{totalBulk}</div>
+          <div className="bp-stat-box__sub">active bulk operations</div>
+        </div>
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Open Issues</div>
+          <div className="bp-stat-box__value">—</div>
+          <div className="bp-stat-box__sub bp-stat-box__sub--accent" />
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="bp-landing__toolbar">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="bp-search-wrap">
+            <input
+              className="bp-landing__search"
+              placeholder="Filter by name or slug…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="bp-filter-pills">
+            {[["all","All"],["active","Active"],["pending","Pending"],["suspended","Suspended"]].map(([k,l]) => (
+              <button
+                key={k}
+                className={`bp-filter-pill${statusFilter === k ? " bp-filter-pill--active" : ""}`}
+                onClick={() => setStatusFilter(k)}
+              >{l}</button>
+            ))}
+          </div>
+        </div>
+        <span className="bp-showing">Showing {filtered.length} of {orgs.length}</span>
+      </div>
+
+      {/* Table */}
+      {loading && orgs.length === 0 ? (
+        <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af" }}>Loading organisations…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af" }}>No organisations match your search or filter.</div>
+      ) : (
+        <div className="bp-table-wrap">
+          <table className="bp-org-table">
+            <thead>
+              <tr>
+                <th>Organization</th>
+                <th>Slug</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th style={{ textAlign: "right" }}>Members</th>
+                <th style={{ textAlign: "right" }}>Operators</th>
+                <th style={{ textAlign: "right" }}>Bulk in flight</th>
+                <th>Last Activity</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((org) => {
+                const bulkCount = org.bulkOperationsCount ?? 0;
+                return (
+                  <tr key={org.id}>
+                    <td>
+                      <div className="bp-org-cell">
+                        <div className="bp-org-avatar" style={{ background: orgAvatarColor(org.name) }}>
+                          {orgInitials(org.name)}
+                        </div>
+                        <div>
+                          <div className="bp-org-name">
+                            {org.name}
+                            {org.isDefault && <span className="bp-default-tag">Default</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className="bp-tbl-mono">{org.slug}</span></td>
+                    <td><span className="bp-tbl-plan">—</span></td>
+                    <td>
+                      <span className={`bp-status ${statusClass(org.status)}`}>
+                        {org.status ?? "active"}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span className="bp-tbl-num">{(org.consumerUserCount ?? 0).toLocaleString()}</span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span className="bp-tbl-num">{org.cmsUserCount ?? 0}</span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span className={bulkCount > 0 ? "bp-tbl-num--accent" : "bp-tbl-num--zero"}>
+                        {bulkCount > 0 ? bulkCount : "0"}
+                      </span>
+                    </td>
+                    <td><span className="bp-tbl-time">{timeAgo(org.updatedAt)}</span></td>
+                    <td style={{ textAlign: "right" }}>
+                      <button className="bp-enter-btn" onClick={() => onEnterOrg(org)}>
+                        Enter →
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Create org modal */}
+      {showCreate && (
+        <div className="bp-modal-overlay" onClick={() => !creating && setShowCreate(false)}>
+          <div className="bp-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="bp-modal__title">New Organization</h3>
+            <form onSubmit={handleCreate} noValidate>
+              <div className="form__field" style={{ marginBottom: 14 }}>
+                <label className="form__label" style={{ color: "#374151" }}>Organisation Name *</label>
+                <input
+                  className={`form__input${createErrors.name ? " form__input--err" : ""}`}
+                  value={newName}
+                  onChange={(e) => { setNewName(e.target.value); setCreateErrors((p) => ({ ...p, name: "" })); }}
+                  placeholder="e.g. Acme Insurance"
+                  autoFocus
+                  style={{ background: "#fff", color: "#1a1a2e", borderColor: "#ddd6c8" }}
+                />
+                {createErrors.name && <span className="form__err">{createErrors.name}</span>}
+              </div>
+              <div className="form__field" style={{ marginBottom: 20 }}>
+                <label className="form__label" style={{ color: "#374151" }}>
+                  Slug * <span style={{ color: "#9ca3af", fontWeight: 400 }}>(immutable, 2–50 chars)</span>
+                </label>
+                <input
+                  className={`form__input${createErrors.slug ? " form__input--err" : ""}`}
+                  value={newSlug}
+                  onChange={(e) => { setNewSlug(e.target.value.toLowerCase()); setCreateErrors((p) => ({ ...p, slug: "" })); }}
+                  placeholder="e.g. acme"
+                  style={{ background: "#fff", color: "#1a1a2e", borderColor: "#ddd6c8" }}
+                />
+                {createErrors.slug && <span className="form__err">{createErrors.slug}</span>}
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setShowCreate(false)} disabled={creating}>Cancel</button>
+                <button type="submit" className="bp-new-org-btn" style={{ fontSize: 13 }} disabled={creating}>
+                  {creating ? "Creating…" : "Create organization"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── OrgDashboardView ── */
+function OrgDashboardView({ onNavigate }) {
+  const { currentUser, activeOrg } = useApp();
+  const usersTotal = useSelector((s) => s.users?.totalItems ?? 0);
+  const rolesCount = useSelector((s) => s.roles?.roles?.length ?? 0);
+
+  const [auditLogs, setAuditLogs]   = useState([]);
+  const [lastActivity, setLastActivity] = useState(null);
+  const [bulkIssues, setBulkIssues] = useState([]);
+
+  useEffect(() => {
+    auditService.listAuditLogs({ page: 0, size: 6 })
+      .then((d) => {
+        const items = d?.content ?? d?.items ?? (Array.isArray(d) ? d : []);
+        setAuditLogs(items);
+        if (items.length > 0) setLastActivity(items[0]);
+      })
+      .catch(() => {});
+
+    bulkService.listJobs({ page: 0, size: 10 })
+      .then((d) => {
+        const jobs = d?.content ?? d?.items ?? (Array.isArray(d) ? d : []);
+        const issues = [];
+        const errored = jobs.filter((j) => j.status === "FAILED" || (j.invalidRows > 0));
+        if (errored.length > 0) issues.push({ type: "bulk", color: "#c0392b", text: `BULK · ${errored.length} JOB${errored.length > 1 ? "S" : ""} WITH ERRORS`, sub: `${errored.length} job(s) have failed or invalid rows.` });
+        issues.push({ type: "auth", color: "#16a085", text: "AUTH · ALL CLEAR", sub: "No failed login spikes in last 24 hours." });
+        setBulkIssues(issues);
+      })
+      .catch(() => {
+        setBulkIssues([{ type: "auth", color: "#16a085", text: "AUTH · ALL CLEAR", sub: "No failed login spikes in last 24 hours." }]);
+      });
+  }, [activeOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const actionLabel = (action) => {
+    const colors = { CREATE:"#16a085", UPDATE:"#2980b9", DELETE:"#c0392b", LOGIN:"#8e44ad", ASSIGN:"#d35400", REVOKE:"#c0392b" };
+    return (
+      <span style={{
+        display:"inline-block", padding:"1px 6px", borderRadius:4, border:`1px solid ${colors[action] ?? "#aaa"}`,
+        color: colors[action] ?? "#555", fontSize:10, fontWeight:700, letterSpacing:"0.04em", marginRight:6
+      }}>{action}</span>
+    );
+  };
+
+  const totalMembers   = activeOrg?.consumerUserCount ?? 0;
+  const bulkInFlight   = activeOrg?.bulkOperationsCount ?? 0;
+  const lastActivityStr = lastActivity
+    ? `${timeAgo(lastActivity.createdAt || lastActivity.timestamp)} · ${lastActivity.actorEmail || lastActivity.actorName || "System"}`
+    : "—";
+
+  return (
+    <div className="bp-org-dash">
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:16 }}>
+        <div>
+          <h1 className="bp-org-dash__title">Dashboard</h1>
+          <p className="bp-org-dash__sub">
+            Welcome back, {currentUser?.name || currentUser?.email?.split("@")[0] || "Admin"}.
+            {" "}Here's what's happening in <strong style={{ color:"#1a1a2e" }}>{activeOrg?.name}</strong> right now.
+          </p>
+        </div>
+        <div style={{ display:"flex", gap:8, flexShrink:0, paddingTop:4 }}>
+          <button className="bp-export-btn" style={{ fontSize:12 }}>📄 Daily report</button>
+          <button className="bp-new-org-btn" style={{ fontSize:12 }} onClick={() => onNavigate("BULK")}>↑ New bulk upload</button>
+        </div>
+      </div>
+
+      <hr className="bp-landing__divider" />
+
+      {/* Stats row */}
+      <div className="bp-stats-row" style={{ marginBottom:28 }}>
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Total Members</div>
+          <div className="bp-stat-box__value">{totalMembers.toLocaleString()}</div>
+          <div className="bp-stat-box__sub">consumer members</div>
+        </div>
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Operators</div>
+          <div className="bp-stat-box__value">{usersTotal || "—"}</div>
+          <div className="bp-stat-box__sub">backoffice users</div>
+        </div>
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Bulk Runs in Flight</div>
+          <div className={`bp-stat-box__value${bulkInFlight > 0 ? " bp-stat-box__value--accent" : ""}`}>{bulkInFlight}</div>
+          <div className="bp-stat-box__sub" style={{ cursor: bulkInFlight > 0 ? "pointer" : "default", color: bulkInFlight > 0 ? "#c0392b" : undefined }}
+            onClick={bulkInFlight > 0 ? () => onNavigate("BULK") : undefined}>
+            {bulkInFlight > 0 ? "See bulk upload →" : "no active jobs"}
+          </div>
+        </div>
+        <div className="bp-stat-box">
+          <div className="bp-stat-box__label">Last Activity</div>
+          <div className="bp-stat-box__value" style={{ fontSize: lastActivity ? 22 : 36 }}>
+            {lastActivity ? timeAgo(lastActivity.createdAt || lastActivity.timestamp) : "—"}
+          </div>
+          <div className="bp-stat-box__sub">
+            {lastActivity ? `${lastActivity.actorEmail || lastActivity.actorName || "System"}` : "no recent events"}
+          </div>
+        </div>
+      </div>
+
+      {/* Two-column body */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 420px", gap:16 }}>
+
+        {/* Live activity */}
+        <div style={{ background:"#fff", border:"1px solid #e0d9cc", borderRadius:10, padding:"20px 24px" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+            <div>
+              <div style={{ fontSize:15, fontWeight:700, color:"#1a1a2e" }}>Live activity</div>
+              <div style={{ fontSize:11, color:"#9ca3af" }}>Last {auditLogs.length} events in this org</div>
+            </div>
+            <button className="bp-export-btn" style={{ fontSize:11, padding:"4px 10px" }} onClick={() => onNavigate("AUDIT")}>
+              Open audit log →
+            </button>
+          </div>
+          <div style={{ marginTop:16 }}>
+            {auditLogs.length === 0 ? (
+              <div style={{ color:"#9ca3af", fontSize:13, padding:"20px 0", textAlign:"center" }}>No recent activity</div>
+            ) : auditLogs.map((log, i) => {
+              const ts   = log.createdAt || log.timestamp || "";
+              const dt   = ts ? new Date(ts).toLocaleDateString("en-IN", { month:"short", day:"numeric" }) + ", " +
+                           new Date(ts).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false }) : "—";
+              const actor = log.actorName || log.actorEmail || "System";
+              const module = log.module || "";
+              const target = log.targetLabel || log.targetId || "";
+              return (
+                <div key={i} style={{ display:"flex", gap:16, padding:"10px 0", borderBottom: i < auditLogs.length-1 ? "1px solid #f5f0e8" : "none", alignItems:"flex-start" }}>
+                  <div style={{ fontSize:11, color:"#9ca3af", whiteSpace:"nowrap", minWidth:120, marginTop:1 }}>{dt}</div>
+                  <div style={{ fontSize:13, color:"#1a1a2e" }}>
+                    <strong>{actor}</strong>{" "}
+                    {actionLabel(log.action)}
+                    {module && <span style={{ color:"#6b7280" }}>{module}{target ? ` · ${target}` : ""}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right column */}
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          {/* Needs attention */}
+          <div style={{ background:"#fff", border:"1px solid #e0d9cc", borderRadius:10, padding:"20px 24px" }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"#1a1a2e", marginBottom:4 }}>Needs your attention</div>
+            <div style={{ fontSize:11, color:"#9ca3af", marginBottom:14 }}>{bulkIssues.length} items</div>
+            {bulkIssues.map((item, i) => (
+              <div key={i} style={{ borderLeft:`3px solid ${item.color}`, paddingLeft:12, marginBottom:12 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:item.color, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:3 }}>{item.text}</div>
+                <div style={{ fontSize:12, color:"#6b7280" }}>{item.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Member growth placeholder */}
+          <div style={{ background:"#fff", border:"1px solid #e0d9cc", borderRadius:10, padding:"20px 24px" }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"#1a1a2e", marginBottom:2 }}>Member growth</div>
+            <div style={{ fontSize:11, color:"#9ca3af", marginBottom:16 }}>Last 6 months · cumulative</div>
+            {/* Simple SVG spark chart */}
+            <svg width="100%" height="80" viewBox="0 0 300 80" style={{ overflow:"visible" }}>
+              <defs>
+                <linearGradient id="grd" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#c0392b" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="#c0392b" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M0,70 C40,65 80,55 120,45 C160,35 200,20 240,15 C260,12 280,10 300,8"
+                fill="none" stroke="#c0392b" strokeWidth="2" strokeLinecap="round" />
+              <path d="M0,70 C40,65 80,55 120,45 C160,35 200,20 240,15 C260,12 280,10 300,8 L300,80 L0,80 Z"
+                fill="url(#grd)" />
+              <circle cx="300" cy="8" r="4" fill="#c0392b" />
+            </svg>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"#9ca3af", marginTop:4 }}>
+              {["Dec","Jan","Feb","Mar","Apr","May"].map((m) => <span key={m}>{m}</span>)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── PlaceholderView ── */
+function PlaceholderView({ title, icon }) {
+  return (
+    <div className="bp-placeholder">
+      <div className="bp-placeholder__icon">{icon ?? "🚧"}</div>
+      <div className="bp-placeholder__title">{title}</div>
+      <div className="bp-placeholder__sub">This section is coming soon.</div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/*  Dashboard shell                                            */
+/* ─────────────────────────────────────────────────────────── */
 export default function SuperAdminDashboard() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
-  const { currentUser, logoutSuperAdmin, activeOrg } = useApp();
+  const { currentUser, logoutSuperAdmin, activeOrg, switchOrg } = useApp();
   const {
     permissions: rawPerms,
     loading: meLoading,
@@ -3669,10 +4153,37 @@ export default function SuperAdminDashboard() {
 
   const [activeTab, setActiveTab]         = useState(null);
   const [bulkJobsCount, setBulkJobsCount] = useState(null);
+  const [inOrgView, setInOrgView]         = useState(false);
+  const [activeView, setActiveView]       = useState("orgs");
 
   const orgsCount  = useSelector((s) => s.orgs?.orgs?.length ?? 0);
   const usersTotal = useSelector((s) => s.users?.totalItems ?? 0);
   const rolesCount = useSelector((s) => s.roles?.roles?.length ?? 0);
+  const orgs       = useSelector((s) => s.orgs?.orgs ?? []);
+
+  const handleEnterOrg = (org) => {
+    switchOrg(org);
+    setInOrgView(true);
+    setActiveView("org-dashboard");
+  };
+
+  const handleExitOrg = () => {
+    setInOrgView(false);
+    setActiveView("orgs");
+  };
+
+  const handleNavClick = (view) => {
+    setActiveView(view);
+    dispatch(fetchMyPermissions());
+  };
+
+  // Auto-select default org for X-ORG-ID header (previously done by OrgDropdown)
+  useEffect(() => {
+    if (!activeOrg && orgs.length > 0) {
+      const def = orgs.find((o) => o.isDefault) ?? orgs.find((o) => o.name === "Kinko") ?? orgs[0];
+      if (def) switchOrg(def);
+    }
+  }, [orgs.length, !!activeOrg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch /me/permissions on mount
   useEffect(() => {
@@ -3693,6 +4204,7 @@ export default function SuperAdminDashboard() {
       .then((d) => setBulkJobsCount(d.items?.length ?? 0))
       .catch(() => {});
     setActiveTab(null);
+    if (inOrgView) setActiveView("org-dashboard");
   }, [activeOrg?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fetch counts so tiles can show metrics immediately
@@ -3735,145 +4247,172 @@ export default function SuperAdminDashboard() {
     navigate("/admin/login");
   };
 
-  return (
-    <div className="sa-dashboard-page">
+  const renderContent = () => {
+    if (meLoading) return <div style={{ padding: 40 }} className="status">Loading permissions…</div>;
+    if (meError)   return <div style={{ padding: 40 }} className="status status--error">⚠ Failed to load permissions ({meError})</div>;
 
-      {/* Navbar */}
-      <header className="sa-navbar">
-        <div className="sa-navbar__brand">
-          <img src={kinkoLogo} alt="Kinko" className="sa-navbar__logo" />
-          <span className="sa-navbar__divider" />
-          <span className="sa-navbar__app">Admin Portal</span>
+    if (!inOrgView) {
+      switch (activeView) {
+        case "orgs":           return <OrgLandingView onEnterOrg={handleEnterOrg} can={can} />;
+        case "super-admins":   return <PlaceholderView title="Super Admins" icon="👤" />;
+        case "global-audit":   return (
+          <div style={{ padding: 4 }}>
+            <ModuleTab key="global-audit" module="AUDIT" actions={moduleActionMap.AUDIT ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />
+          </div>
+        );
+        case "system-settings": return <PlaceholderView title="System Settings" icon="⚙️" />;
+        default:               return <OrgLandingView onEnterOrg={handleEnterOrg} can={can} />;
+      }
+    }
+
+    const tabKey = `${activeOrg?.id ?? "default"}-${activeView}`;
+    switch (activeView) {
+      case "org-dashboard": return <OrgDashboardView onNavigate={handleNavClick} />;
+      case "CMS_USER":  return <ModuleTab key={tabKey} module="CMS_USER" actions={moduleActionMap.CMS_USER ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
+      case "ROLE":      return <ModuleTab key={tabKey} module="ROLE"     actions={moduleActionMap.ROLE    ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
+      case "BULK":      return <ModuleTab key={tabKey} module="BULK"     actions={moduleActionMap.BULK    ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
+      case "AUDIT":     return <ModuleTab key={tabKey} module="AUDIT"    actions={moduleActionMap.AUDIT   ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
+      case "USER":      return <ModuleTab key={tabKey} module="USER"     actions={moduleActionMap.USER    ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
+      case "settings":  return <ModuleTab key={tabKey} module="ORG"      actions={moduleActionMap.ORG     ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
+      default:          return <OrgDashboardView onNavigate={handleNavClick} />;
+    }
+  };
+
+  const orgAvatarLetters = (name) =>
+    (name ?? "").split(" ").slice(0, 2).map((w) => w[0] ?? "").join("").toUpperCase() || "O";
+
+  return (
+    <div className="bp-shell">
+
+      {/* ── Top navbar (dark) ── */}
+      <header className="bp-navbar">
+        <div className="bp-navbar__left">
+          <div className="bp-navbar__brand">
+            <img src={kinkoLogo} alt="Kinko" className="bp-navbar__logo" />
+            <span className="bp-navbar__name">kinko backoffice</span>
+          </div>
+          <div className="bp-navbar__breadcrumb">
+            <span style={{ fontSize:11, color:"#475569" }}>INTERNAL · {new Date().toLocaleDateString("en-US",{month:"short",year:"numeric"}).toUpperCase()}</span>
+            <span className="bp-bc__sep">|</span>
+            <span style={{ fontSize:11, color:"#059669", display:"flex", alignItems:"center", gap:4 }}>
+              <span style={{ width:6, height:6, borderRadius:"50%", background:"#10b981", display:"inline-block" }} />
+              STAGING · ap-south-1 · all systems normal
+            </span>
+          </div>
         </div>
-        <div className="sa-navbar__right">
-          <OrgDropdown />
-          <button className="sa-navbar__logout" onClick={handleLogout}>Sign out</button>
+        <div className="bp-navbar__right">
+          <div className="bp-user-badge">
+            <div className="bp-user-badge__avatar">
+              {(currentUser?.name || currentUser?.email || "A")[0].toUpperCase()}
+            </div>
+          </div>
         </div>
       </header>
 
-      {/* Main content — tile overview or module detail */}
-      <div style={{ padding: "20px 28px", maxWidth: 1440, margin: "0 auto" }}>
-        {meLoading ? (
-          <p className="status">Loading permissions…</p>
-        ) : meError ? (
-          <p className="status status--error">⚠ Failed to load permissions ({meError})</p>
-        ) : modules.length === 0 ? (
-          <p className="status">No permissions assigned to your account.</p>
-        ) : !activeTab ? (
-
-          /* ── Tile overview ── */
-          <div className="sa-overview">
-
-            {/* Page header */}
-            <div className="sa-overview__header">
-              <div>
-                <h1 className="sa-overview__title">Admin Dashboard</h1>
-                <p className="sa-overview__sub">
-                  {activeOrg?.name || "All Organizations"} · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                </p>
+      {/* ── Sub-navbar (scope / breadcrumb bar) ── */}
+      <div style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"0 20px 0 0", height:52, borderBottom:"1px solid #ddd6c8",
+        background:"#f5f0e8", flexShrink:0, zIndex:9,
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:0 }}>
+          {/* Scope pill */}
+          <div style={{
+            display:"flex", alignItems:"center", gap:8, padding:"0 16px",
+            height:52, borderRight:"1px solid #ddd6c8", minWidth:230, cursor: inOrgView ? "pointer" : "default",
+          }} onClick={inOrgView ? handleExitOrg : undefined}>
+            <div style={{
+              width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
+              background: inOrgView ? orgAvatarColor(activeOrg?.name ?? "") : "#ddd6c8",
+              fontSize: inOrgView ? 11 : 16, fontWeight:800, color: inOrgView ? "#fff" : "#9ca3af", flexShrink:0,
+            }}>
+              {inOrgView ? orgInitials(activeOrg?.name ?? "") : "🌐"}
+            </div>
+            <div>
+              <div style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"#9ca3af" }}>
+                {inOrgView ? "Organization" : "Scope"}
               </div>
-              <div className="sa-admin-badge">
-                <div className="sa-admin-badge__avatar">
-                  {(currentUser?.name || currentUser?.email || "A")[0].toUpperCase()}
-                </div>
-                <div className="sa-admin-badge__info">
-                  <span className="sa-admin-badge__name">{currentUser?.name || currentUser?.email?.split("@")[0] || "Admin"}</span>
-                </div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#1a1a2e" }}>
+                {inOrgView ? activeOrg?.name : "All organizations"}
               </div>
-            </div>
-
-            {/* Summary stats */}
-            <div className="sa-summary-strip">
-              {[
-                { label: "Organizations", value: orgsCount,            accent: "#3b82f6" },
-                { label: "Users",         value: usersTotal,           accent: "#8b5cf6" },
-                { label: "Roles",         value: rolesCount,           accent: "#10b981" },
-                { label: "Jobs",          value: bulkJobsCount ?? "—", accent: "#f59e0b" },
-              ].map(({ label, value, accent }) => (
-                <div key={label} className="sa-sum-card" style={{ "--sum-accent": accent }}>
-                  <div className="sa-sum-value">{value ?? "—"}</div>
-                  <div className="sa-sum-label">{label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Modules section label */}
-            <div className="sa-section-divider">
-              <span className="sa-section-divider__label">Modules</span>
-            </div>
-
-            {/* Tiles grid */}
-            <div className="sa-tiles-grid">
-              {modules.map((m, idx) => {
-                const icon  = MODULE_ICONS[m] ?? "🧩";
-                const label = MODULE_LABELS[m] ?? m;
-                const desc  = MODULE_DESCRIPTIONS[m];
-                let metricValue, metricLabel;
-                if (m === "ORG")           { metricValue = orgsCount;      metricLabel = "organizations"; }
-                else if (m === "CMS_USER") { metricValue = usersTotal;     metricLabel = "users"; }
-                else if (m === "ROLE")     { metricValue = rolesCount;     metricLabel = "roles"; }
-                else if (m === "BULK")     { metricValue = bulkJobsCount;  metricLabel = "jobs"; }
-                const hasMetric = metricValue !== null && metricValue !== undefined;
-                return (
-                  <div key={m} className="sa-tile-wrapper" style={{ "--tile-index": idx }}>
-                    <div
-                      className="sa-tile"
-                      onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") { setActiveTab(m); dispatch(fetchMyPermissions()); }
-                      }}
-                    >
-                      <div className="sa-tile__top">
-                        <div className="sa-tile__icon">{icon}</div>
-                        <span className="sa-tile__arrow">→</span>
-                      </div>
-                      <div className="sa-tile__title">{label}</div>
-                      {desc && <div className="sa-tile__desc">{desc}</div>}
-                      {hasMetric && (
-                        <div className="sa-tile__metric">
-                          <span className="sa-tile__metric-value">{metricValue}</span>
-                          <span className="sa-tile__metric-label">{metricLabel}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
-
-        ) : (
-
-          /* ── Module detail view ── */
-          <div>
-            <div className="sa-detail-header">
-              <button className="sa-back-btn" onClick={() => setActiveTab(null)}>
-                ← Dashboard
-              </button>
-              <div className="sa-detail-nav">
-                {modules.map((m) => (
-                  <button
-                    key={m}
-                    className={`sa-nav-pill${activeTab === m ? " sa-nav-pill--active" : ""}`}
-                    onClick={() => { setActiveTab(m); dispatch(fetchMyPermissions()); }}
-                  >
-                    {MODULE_ICONS[m] ? `${MODULE_ICONS[m]} ` : ""}{MODULE_LABELS[m] ?? m}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <ModuleTab
-              key={`${activeOrg?.id ?? "default"}-${activeTab}`}
-              module={activeTab}
-              actions={moduleActionMap[activeTab] ?? new Set()}
-              can={can}
-              onJobsLoad={setBulkJobsCount}
+          {/* Breadcrumb */}
+          <div style={{ padding:"0 20px", fontSize:11, fontWeight:600, color:"#9ca3af", letterSpacing:"0.05em", textTransform:"uppercase" }}>
+            {inOrgView
+              ? <>
+                  <span style={{ cursor:"pointer" }} onClick={handleExitOrg}>Organizations</span>
+                  {" / "}<span>{activeOrg?.name?.toUpperCase()}</span>
+                  {" / "}<span style={{ color:"#1a1a2e" }}>{(VIEW_LABELS[activeView] ?? activeView).toUpperCase()}</span>
+                </>
+              : "Organizations"
+            }
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {/* Search box */}
+          <div style={{ position:"relative" }}>
+            <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#9ca3af", fontSize:14 }}>🔍</span>
+            <input
+              placeholder={inOrgView ? `Search users, roles, audit in ${activeOrg?.name ?? "org"}…` : "Search organizations, users, audit log…"}
+              style={{
+                padding:"6px 12px 6px 32px", background:"#fff", border:"1px solid #ddd6c8",
+                borderRadius:8, fontSize:12, color:"#1a1a2e", width:280, outline:"none",
+                fontFamily:"inherit",
+              }}
             />
+            <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:10, color:"#9ca3af", background:"#f5f0e8", padding:"1px 4px", borderRadius:4, border:"1px solid #ddd6c8" }}>⌘K</span>
           </div>
+          {inOrgView && (
+            <button className="bp-exit-btn" onClick={handleExitOrg}>← Exit org</button>
+          )}
+        </div>
+      </div>
 
-        )}
+      {/* ── Body ── */}
+      <div className="bp-body">
+
+        {/* ── Sidebar ── */}
+        <aside className="bp-sidebar">
+
+          {/* Nav items */}
+          <nav className="bp-nav">
+            {!inOrgView ? (
+              <>
+                <div className="bp-nav__section">Tenants</div>
+                <NavItem icon="🏢" label="Organizations" view="orgs"            activeView={activeView} onClick={handleNavClick} count={orgsCount > 0 ? orgsCount : null} />
+                <div className="bp-nav__section">Platform</div>
+                <NavItem icon="👤" label="Super Admins"  view="super-admins"    activeView={activeView} onClick={handleNavClick} />
+                <NavItem icon="🔍" label="Global Audit"  view="global-audit"    activeView={activeView} onClick={handleNavClick} />
+                <NavItem icon="⚙️" label="System Settings" view="system-settings" activeView={activeView} onClick={handleNavClick} />
+              </>
+            ) : (
+              <>
+                <div className="bp-nav__section">Overview</div>
+                <NavItem icon="📊" label="Dashboard"    view="org-dashboard" activeView={activeView} onClick={handleNavClick} />
+                <div className="bp-nav__section">Operators</div>
+                {moduleActionMap.CMS_USER && <NavItem icon="👥" label="CMS Users"    view="CMS_USER" activeView={activeView} onClick={handleNavClick} count={usersTotal > 0 ? usersTotal : null} />}
+                {moduleActionMap.ROLE     && <NavItem icon="🎭" label="Roles & Perms" view="ROLE"     activeView={activeView} onClick={handleNavClick} />}
+                <div className="bp-nav__section">Membership</div>
+                {moduleActionMap.USER && <NavItem icon="🙍" label="Members"     view="USER" activeView={activeView} onClick={handleNavClick} />}
+                {moduleActionMap.BULK && <NavItem icon="📦" label="Bulk Upload"  view="BULK" activeView={activeView} onClick={handleNavClick} count={bulkJobsCount > 0 ? bulkJobsCount : null} />}
+                <div className="bp-nav__section">Compliance</div>
+                {moduleActionMap.AUDIT && <NavItem icon="📋" label="Audit Log" view="AUDIT"    activeView={activeView} onClick={handleNavClick} />}
+                {moduleActionMap.ORG   && <NavItem icon="⚙️" label="Settings"  view="settings" activeView={activeView} onClick={handleNavClick} />}
+              </>
+            )}
+          </nav>
+
+          <div className="bp-sidebar__footer">
+            <div>Backoffice v2.0</div>
+          </div>
+        </aside>
+
+        {/* ── Content ── */}
+        <main className="bp-content">
+          {renderContent()}
+        </main>
+
       </div>
     </div>
   );

@@ -1,3 +1,13 @@
+## 2026-05-20 — code-review (staged) [layout & audit]
+
+### [Low] AUDIT_MODULES array is now unused dead code
+- **File**: `src/components/SuperAdminDashboard/index.jsx`
+- **Issue**: Entity Type filter was rewritten with hardcoded `<option>` elements; `AUDIT_MODULES` constant is no longer referenced.
+- **Suggested fix**: Remove the `AUDIT_MODULES` declaration.
+- **Status**: Open
+
+---
+
 ## 2026-05-20 — code-review (staged): clean
 
 No findings. Fixes paginated-API-response crashes (orgs/roles/permissions/userRoles/getUsersForRole), adds Array.isArray guards in RoleModuleTab selectors and getUsersForRole helper, removes "Super Admin" label from dashboard badge, adds full e2e Playwright test suite (tests/e2e/).

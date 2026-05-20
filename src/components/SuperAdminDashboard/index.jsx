@@ -3039,20 +3039,31 @@ function ConsumerUserModuleTab({ actions }) {
 /* ─────────────────────────────────────────────────────────── */
 /*  AUDIT module tab — paginated audit log with filters        */
 /* ─────────────────────────────────────────────────────────── */
-const AUDIT_MODULES = ["", "ORG", "CMS_USER", "ROLE", "BULK", "USER"];
+const AUDIT_MODULES = ["", "Organization", "CmsUser", "Role", "BulkUpload", "ConsumerUser", "ORG", "CMS_USER", "ROLE", "BULK", "USER"];
 const AUDIT_ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "READ", "UPLOAD", "ASSIGN", "REVOKE", "LOGIN", "LOGOUT"];
-const AUDIT_MODULE_LABELS = { ORG: "Organisation", CMS_USER: "CMS User", ROLE: "Role", BULK: "Bulk Ops", USER: "Consumer User" };
+const AUDIT_MODULE_LABELS = {
+  Organization: "Organization", CmsUser: "CMS User", Role: "Role",
+  BulkUpload: "Bulk Upload", ConsumerUser: "Consumer User",
+  ORG: "Organisation", CMS_USER: "CMS User", ROLE: "Role", BULK: "Bulk Ops", USER: "Consumer User",
+};
 const AUDIT_MODULE_COLORS = {
-  ORG:      { bg: "rgba(99,102,241,0.08)",  color: "#4f46e5",  border: "rgba(99,102,241,0.2)"  },
-  CMS_USER: { bg: "rgba(16,185,129,0.08)",  color: "#059669",  border: "rgba(16,185,129,0.2)"  },
-  ROLE:     { bg: "rgba(124,58,237,0.08)",  color: "#7c3aed",  border: "rgba(124,58,237,0.2)"  },
-  BULK:     { bg: "rgba(245,158,11,0.08)",  color: "#b45309",  border: "rgba(245,158,11,0.2)"  },
-  USER:     { bg: "rgba(20,184,166,0.08)",  color: "#0d9488",  border: "rgba(20,184,166,0.2)"  },
+  Organization: { bg: "rgba(99,102,241,0.08)",  color: "#4f46e5",  border: "rgba(99,102,241,0.2)"  },
+  CmsUser:      { bg: "rgba(16,185,129,0.08)",  color: "#059669",  border: "rgba(16,185,129,0.2)"  },
+  Role:         { bg: "rgba(124,58,237,0.08)",  color: "#7c3aed",  border: "rgba(124,58,237,0.2)"  },
+  BulkUpload:   { bg: "rgba(245,158,11,0.08)",  color: "#b45309",  border: "rgba(245,158,11,0.2)"  },
+  ConsumerUser: { bg: "rgba(20,184,166,0.08)",  color: "#0d9488",  border: "rgba(20,184,166,0.2)"  },
+  ORG:          { bg: "rgba(99,102,241,0.08)",  color: "#4f46e5",  border: "rgba(99,102,241,0.2)"  },
+  CMS_USER:     { bg: "rgba(16,185,129,0.08)",  color: "#059669",  border: "rgba(16,185,129,0.2)"  },
+  ROLE:         { bg: "rgba(124,58,237,0.08)",  color: "#7c3aed",  border: "rgba(124,58,237,0.2)"  },
+  BULK:         { bg: "rgba(245,158,11,0.08)",  color: "#b45309",  border: "rgba(245,158,11,0.2)"  },
+  USER:         { bg: "rgba(20,184,166,0.08)",  color: "#0d9488",  border: "rgba(20,184,166,0.2)"  },
 };
 
 
-function AuditModuleTab({ actions }) {
-  const canRead = actions.has("READ") || actions.has("MANAGE");
+function AuditModuleTab({ actions, isGlobal = false }) {
+  // Global audit is super-admin only — always allow; org-scoped audit requires READ/MANAGE
+  const canRead = isGlobal || actions.has("READ") || actions.has("MANAGE");
+  const allOrgs = useSelector((s) => s.orgs?.orgs ?? []);
 
   // Start with ready=false so no API call fires on mount.
   // Once the user triggers a load and the endpoint responds with data, ready flips to true.
@@ -3065,10 +3076,11 @@ function AuditModuleTab({ actions }) {
   const [totalItems, setTotalItems] = useState(0);
   const [moduleFilter, setModuleFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const [orgFilter, setOrgFilter]       = useState("");
   const [fromDate, setFromDate]     = useState("");
   const [toDate, setToDate]         = useState("");
 
-  const loadLogs = useCallback(async (pg, mod, act, from, to) => {
+  const loadLogs = useCallback(async (pg, mod, act, from, to, org) => {
     if (!canRead) return;
     setLoading(true);
     setError(null);
@@ -3077,17 +3089,20 @@ function AuditModuleTab({ actions }) {
       const fromIso = from ? `${from}T00:00:00.000Z` : undefined;
       const toIso   = to   ? `${to}T23:59:59.999Z`   : undefined;
       const data = await auditService.listAuditLogs({
-        page: pg,
-        size: 20,
-        module: mod || undefined,
-        action: act || undefined,
-        from:   fromIso,
-        to:     toIso,
+        page:           pg,
+        size:           20,
+        module:         mod || undefined,
+        entityType:     mod || undefined,
+        action:         act || undefined,
+        from:           fromIso,
+        to:             toIso,
+        organizationId: org || undefined,   // org ID from dropdown; sets X-ORG-ID for the request
+        isGlobal,
       });
       setReady(true);
-      setLogs(data?.items ?? []);
+      setLogs(data?.content ?? data?.items ?? []);
       setTotalPages(data?.totalPages ?? 1);
-      setTotalItems(data?.totalItems ?? 0);
+      setTotalItems(data?.totalElements ?? data?.totalItems ?? 0);
     } catch (err) {
       const code = err?.response?.data?.errorCode;
       // NOT_FOUND means the endpoint isn't deployed yet — leave ready=false, no error shown
@@ -3100,25 +3115,25 @@ function AuditModuleTab({ actions }) {
   }, [canRead]);
 
   // Load on mount so data is visible as soon as the tab opens.
-  useEffect(() => { loadLogs(0, "", "", "", ""); }, [loadLogs]);
+  useEffect(() => { loadLogs(0, "", "", "", "", ""); }, [loadLogs]);
 
   const handleApplyFilters = () => {
     setPage(0);
-    loadLogs(0, moduleFilter, actionFilter, fromDate, toDate);
+    loadLogs(0, moduleFilter, actionFilter, fromDate, toDate, orgFilter);
   };
 
   const handleClearFilters = () => {
-    setModuleFilter(""); setActionFilter(""); setFromDate(""); setToDate("");
+    setModuleFilter(""); setActionFilter(""); setOrgFilter(""); setFromDate(""); setToDate("");
     setPage(0);
-    loadLogs(0, "", "", "", "");
+    loadLogs(0, "", "", "", "", "");
   };
 
   const handlePageChange = (pg) => {
     setPage(pg);
-    loadLogs(pg, moduleFilter, actionFilter, fromDate, toDate);
+    loadLogs(pg, moduleFilter, actionFilter, fromDate, toDate, orgFilter);
   };
 
-  const handleRefresh = () => loadLogs(page, moduleFilter, actionFilter, fromDate, toDate);
+  const handleRefresh = () => loadLogs(page, moduleFilter, actionFilter, fromDate, toDate, orgFilter);
 
   if (!canRead) {
     return (
@@ -3155,7 +3170,7 @@ function AuditModuleTab({ actions }) {
                 ? `Error: ${error}`
                 : "The audit log endpoint could not be reached. It may not yet be deployed on this backend."}
             </p>
-            <button className="btn btn--ghost btn--sm" onClick={() => loadLogs(0, "", "", "", "")}>
+            <button className="btn btn--ghost btn--sm" onClick={() => loadLogs(0, "", "", "", "", "")}>
               Retry
             </button>
           </div>
@@ -3164,7 +3179,7 @@ function AuditModuleTab({ actions }) {
     );
   }
 
-  const hasActiveFilters = moduleFilter || actionFilter || fromDate || toDate;
+  const hasActiveFilters = moduleFilter || actionFilter || fromDate || toDate || orgFilter;
 
   return (
     <div className="tab-content">
@@ -3189,15 +3204,18 @@ function AuditModuleTab({ actions }) {
           borderBottom: "1px solid rgba(99,102,241,0.08)",
           background: "rgba(248,250,252,0.6)",
         }}>
-          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
-            <label className="form__label">Module</label>
+          <div className="form__field" style={{ minWidth: 130, flex: 1 }}>
+            <label className="form__label">Entity Type</label>
             <select className="form__input form__select" value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
-              {AUDIT_MODULES.map((m) => (
-                <option key={m} value={m}>{m ? (AUDIT_MODULE_LABELS[m] ?? m) : "All Modules"}</option>
-              ))}
+              <option value="">All Types</option>
+              <option value="Organization">Organization</option>
+              <option value="CmsUser">CMS User</option>
+              <option value="Role">Role</option>
+              <option value="BulkUpload">Bulk Upload</option>
+              <option value="ConsumerUser">Consumer User</option>
             </select>
           </div>
-          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+          <div className="form__field" style={{ minWidth: 130, flex: 1 }}>
             <label className="form__label">Action</label>
             <select className="form__input form__select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
               {AUDIT_ACTIONS.map((a) => (
@@ -3205,11 +3223,26 @@ function AuditModuleTab({ actions }) {
               ))}
             </select>
           </div>
-          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+          {isGlobal && (
+            <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+              <label className="form__label">Organization</label>
+              <select
+                className="form__input form__select"
+                value={orgFilter}
+                onChange={(e) => setOrgFilter(e.target.value)}
+              >
+                <option value="">All Organizations</option>
+                {allOrgs.map((org) => (
+                  <option key={org.id} value={org.id}>{org.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="form__field" style={{ minWidth: 120, flex: 1 }}>
             <label className="form__label">From</label>
             <input type="date" className="form__input" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
           </div>
-          <div className="form__field" style={{ minWidth: 140, flex: 1 }}>
+          <div className="form__field" style={{ minWidth: 120, flex: 1 }}>
             <label className="form__label">To</label>
             <input type="date" className="form__input" value={toDate} onChange={(e) => setToDate(e.target.value)} />
           </div>
@@ -3287,20 +3320,25 @@ function AuditModuleTab({ actions }) {
             <table className="tbl" style={{ tableLayout: "fixed", width: "100%" }}>
               <thead>
                 <tr>
-                  <th style={{ width: 118 }}>Timestamp</th>
-                  <th style={{ width: 180 }}>Actor</th>
-                  <th style={{ width: 108 }}>Module</th>
-                  <th style={{ width: 120 }}>Action</th>
-                  <th style={{ width: 210 }}>Target</th>
+                  <th style={{ width: 110 }}>Timestamp</th>
+                  <th style={{ width: 160 }}>Actor</th>
+                  <th style={{ width: 110 }}>Entity Type</th>
+                  <th style={{ width: 100 }}>Action</th>
+                  <th style={{ width: 130 }}>Organization</th>
+                  <th style={{ width: 170 }}>Target</th>
                   <th>Summary</th>
                 </tr>
               </thead>
               <tbody>
                 {logs.map((log) => {
                   const actorInitial = ((log.actor?.fullName ?? log.actor?.email) || "?")[0].toUpperCase();
-                  const modStyle = log.module ? AUDIT_MODULE_COLORS[log.module] : null;
-                  const ts = log.createdAt ? new Date(log.createdAt) : null;
-                  const targetText = log.target?.label ?? log.target?.id ?? "—";
+                  const entityType  = log.entityType || log.module || "";
+                  const modStyle    = entityType ? (AUDIT_MODULE_COLORS[entityType] ?? null) : null;
+                  const ts          = log.createdAt ? new Date(log.createdAt) : null;
+                  const targetText  = log.target?.label ?? log.target?.id ?? "—";
+                  const orgDisplay  = log.organization?.name
+                    ? `${log.organization.name} (${log.orgSlug || log.organization.slug || ""})`
+                    : (log.orgSlug || "—");
                   /* clip = reliable BFC clip; summary uses maxHeight for 2-line cap */
                   const clip = { overflow: "hidden", width: "100%" };
                   const summaryLineH = 1.55;
@@ -3351,10 +3389,10 @@ function AuditModuleTab({ actions }) {
                         </div>
                       </td>
 
-                      {/* Module */}
+                      {/* Entity Type */}
                       <td style={{ verticalAlign: "top" }}>
                         <div style={clip}>
-                          {log.module ? (
+                          {entityType ? (
                             <span style={{
                               display: "inline-block", fontSize: 10, fontWeight: 700,
                               padding: "3px 7px", borderRadius: 5, whiteSpace: "nowrap",
@@ -3362,7 +3400,7 @@ function AuditModuleTab({ actions }) {
                               color: modStyle?.color ?? "#64748b",
                               border: `1px solid ${modStyle?.border ?? "#dde6f2"}`,
                             }}>
-                              {AUDIT_MODULE_LABELS[log.module] ?? log.module}
+                              {AUDIT_MODULE_LABELS[entityType] ?? entityType}
                             </span>
                           ) : <span className="tbl__muted">—</span>}
                         </div>
@@ -3377,6 +3415,18 @@ function AuditModuleTab({ actions }) {
                               {log.action}
                             </span>
                           ) : "—"}
+                        </div>
+                      </td>
+
+                      {/* Organization */}
+                      <td style={{ verticalAlign: "top" }}>
+                        <div style={clip} title={orgDisplay}>
+                          <span style={{ display: "block", fontSize: 12, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
+                            {log.organization?.name || log.orgSlug || "—"}
+                          </span>
+                          {log.orgSlug && log.organization?.name && (
+                            <span className="tbl__mono" style={{ fontSize: 10, color: "#9ca3af" }}>{log.orgSlug}</span>
+                          )}
                         </div>
                       </td>
 
@@ -3488,13 +3538,13 @@ function GenericModuleTab({ module, actions }) {
 /* ─────────────────────────────────────────────────────────── */
 /*  Route module → component                                   */
 /* ─────────────────────────────────────────────────────────── */
-function ModuleTab({ module, actions, can, onJobsLoad }) {
+function ModuleTab({ module, actions, can, onJobsLoad, isGlobal }) {
   if (module === "ORG")      return <OrgModuleTab      actions={actions} can={can} />;
   if (module === "ROLE")     return <RoleModuleTab     actions={actions} can={can} />;
   if (module === "BULK")     return <BulkModuleTab     actions={actions} onJobsLoad={onJobsLoad} />;
   if (module === "CMS_USER") return <UserModuleTab     actions={actions} can={can} />;
   if (module === "USER")     return <ConsumerUserModuleTab actions={actions} />;
-  if (module === "AUDIT")    return <AuditModuleTab    actions={actions} />;
+  if (module === "AUDIT")    return <AuditModuleTab    actions={actions} isGlobal={!!isGlobal} />;
   return <GenericModuleTab module={module} actions={actions} />;
 }
 
@@ -3843,20 +3893,19 @@ function OrgLandingView({ onEnterOrg, can }) {
               <tr>
                 <th>Organization</th>
                 <th>Slug</th>
-                <th>Plan</th>
-                <th>Status</th>
-                <th style={{ textAlign: "right" }}>Members</th>
-                <th style={{ textAlign: "right" }}>Operators</th>
-                <th style={{ textAlign: "right" }}>Bulk in flight</th>
+                <th style={{ textAlign: "center" }}>Plan</th>
+                <th style={{ textAlign: "center" }}>Status</th>
+                <th style={{ textAlign: "center" }}>Members</th>
+                <th style={{ textAlign: "center" }}>Operators</th>
+                <th style={{ textAlign: "center" }}>Bulk in flight</th>
                 <th>Last Activity</th>
-                <th />
               </tr>
             </thead>
             <tbody>
               {filtered.map((org) => {
                 const bulkCount = org.bulkOperationsCount ?? 0;
                 return (
-                  <tr key={org.id}>
+                  <tr key={org.id} onClick={() => onEnterOrg(org)} style={{ cursor: "pointer" }}>
                     <td>
                       <div className="bp-org-cell">
                         <div className="bp-org-avatar" style={{ background: orgAvatarColor(org.name) }}>
@@ -3871,29 +3920,24 @@ function OrgLandingView({ onEnterOrg, can }) {
                       </div>
                     </td>
                     <td><span className="bp-tbl-mono">{org.slug}</span></td>
-                    <td><span className="bp-tbl-plan">—</span></td>
-                    <td>
+                    <td style={{ textAlign: "center" }}><span className="bp-tbl-plan">—</span></td>
+                    <td style={{ textAlign: "center" }}>
                       <span className={`bp-status ${statusClass(org.status)}`}>
                         {org.status ?? "active"}
                       </span>
                     </td>
-                    <td style={{ textAlign: "right" }}>
+                    <td style={{ textAlign: "center" }}>
                       <span className="bp-tbl-num">{(org.consumerUserCount ?? 0).toLocaleString()}</span>
                     </td>
-                    <td style={{ textAlign: "right" }}>
+                    <td style={{ textAlign: "center" }}>
                       <span className="bp-tbl-num">{org.cmsUserCount ?? 0}</span>
                     </td>
-                    <td style={{ textAlign: "right" }}>
+                    <td style={{ textAlign: "center" }}>
                       <span className={bulkCount > 0 ? "bp-tbl-num--accent" : "bp-tbl-num--zero"}>
                         {bulkCount > 0 ? bulkCount : "0"}
                       </span>
                     </td>
                     <td><span className="bp-tbl-time">{timeAgo(org.updatedAt)}</span></td>
-                    <td style={{ textAlign: "right" }}>
-                      <button className="bp-enter-btn" onClick={() => onEnterOrg(org)}>
-                        Enter →
-                      </button>
-                    </td>
                   </tr>
                 );
               })}
@@ -4041,7 +4085,9 @@ function OrgDashboardView({ onNavigate }) {
             {lastActivity ? timeAgo(lastActivity.createdAt || lastActivity.timestamp) : "—"}
           </div>
           <div className="bp-stat-box__sub">
-            {lastActivity ? `${lastActivity.actorEmail || lastActivity.actorName || "System"}` : "no recent events"}
+            {lastActivity
+              ? (lastActivity.actor?.fullName || lastActivity.actor?.email || "System")
+              : "no recent events"}
           </div>
         </div>
       </div>
@@ -4060,23 +4106,50 @@ function OrgDashboardView({ onNavigate }) {
               Open audit log →
             </button>
           </div>
-          <div style={{ marginTop:16 }}>
+          <div>
             {auditLogs.length === 0 ? (
-              <div style={{ color:"#9ca3af", fontSize:13, padding:"20px 0", textAlign:"center" }}>No recent activity</div>
+              <div style={{ color:"#9ca3af", fontSize:13, padding:"24px 0", textAlign:"center" }}>No recent activity</div>
             ) : auditLogs.map((log, i) => {
-              const ts   = log.createdAt || log.timestamp || "";
-              const dt   = ts ? new Date(ts).toLocaleDateString("en-IN", { month:"short", day:"numeric" }) + ", " +
-                           new Date(ts).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false }) : "—";
-              const actor = log.actorName || log.actorEmail || "System";
-              const module = log.module || "";
-              const target = log.targetLabel || log.targetId || "";
+              const ts      = log.createdAt || "";
+              const dt      = ts
+                ? new Date(ts).toLocaleDateString("en-IN", { day:"numeric", month:"short" }) + ", " +
+                  new Date(ts).toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false })
+                : "—";
+              const actor   = log.actor?.fullName || log.actor?.email || "System";
+              const module  = log.module || "";
+              const target  = log.target?.label || log.target?.id || "";
+              const summary = log.summary || "";
               return (
-                <div key={i} style={{ display:"flex", gap:16, padding:"10px 0", borderBottom: i < auditLogs.length-1 ? "1px solid #f5f0e8" : "none", alignItems:"flex-start" }}>
-                  <div style={{ fontSize:11, color:"#9ca3af", whiteSpace:"nowrap", minWidth:120, marginTop:1 }}>{dt}</div>
-                  <div style={{ fontSize:13, color:"#1a1a2e" }}>
-                    <strong>{actor}</strong>{" "}
-                    {actionLabel(log.action)}
-                    {module && <span style={{ color:"#6b7280" }}>{module}{target ? ` · ${target}` : ""}</span>}
+                <div key={i} style={{
+                  display: "grid",
+                  gridTemplateColumns: "130px 1fr",
+                  gap: "0 16px",
+                  padding: "12px 0",
+                  borderBottom: "1px solid #ede8de",
+                  alignItems: "start",
+                }}>
+                  {/* Timestamp */}
+                  <div style={{ fontSize:11, color:"#9ca3af", paddingTop:2, whiteSpace:"nowrap" }}>{dt}</div>
+
+                  {/* Event details */}
+                  <div style={{ minWidth:0 }}>
+                    {/* Actor + action badge */}
+                    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:2 }}>
+                      <span style={{ fontSize:13, fontWeight:600, color:"#1a1a2e" }}>{actor}</span>
+                      {actionLabel(log.action)}
+                    </div>
+                    {/* Target */}
+                    {(module || target) && (
+                      <div style={{ fontSize:12, color:"#6b7280", marginBottom: summary ? 2 : 0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {module}{target ? ` · ${target}` : ""}
+                      </div>
+                    )}
+                    {/* Summary */}
+                    {summary && (
+                      <div style={{ fontSize:11, color:"#b0a898", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {summary}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -4174,6 +4247,10 @@ export default function SuperAdminDashboard() {
 
   const handleNavClick = (view) => {
     setActiveView(view);
+    // Landing-level views always exit org context
+    if (["orgs", "super-admins", "global-audit", "system-settings"].includes(view)) {
+      setInOrgView(false);
+    }
     dispatch(fetchMyPermissions());
   };
 
@@ -4257,7 +4334,7 @@ export default function SuperAdminDashboard() {
         case "super-admins":   return <PlaceholderView title="Super Admins" icon="👤" />;
         case "global-audit":   return (
           <div style={{ padding: 4 }}>
-            <ModuleTab key="global-audit" module="AUDIT" actions={moduleActionMap.AUDIT ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />
+            <ModuleTab key="global-audit" module="AUDIT" actions={moduleActionMap.AUDIT ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} isGlobal={true} />
           </div>
         );
         case "system-settings": return <PlaceholderView title="System Settings" icon="⚙️" />;
@@ -4288,8 +4365,9 @@ export default function SuperAdminDashboard() {
       <header className="bp-navbar">
         <div className="bp-navbar__left">
           <div className="bp-navbar__brand">
-            <img src={kinkoLogo} alt="Kinko" className="bp-navbar__logo" />
-            <span className="bp-navbar__name">kinko backoffice</span>
+            <div style={{ background: "#fff", borderRadius: 6, padding: "4px 12px", display: "inline-flex", alignItems: "center" }}>
+              <img src={kinkoLogo} alt="Kinko" style={{ height: 24, width: "auto", display: "block" }} />
+            </div>
           </div>
           <div className="bp-navbar__breadcrumb">
             <span style={{ fontSize:11, color:"#475569" }}>INTERNAL · {new Date().toLocaleDateString("en-US",{month:"short",year:"numeric"}).toUpperCase()}</span>
@@ -4305,7 +4383,11 @@ export default function SuperAdminDashboard() {
             <div className="bp-user-badge__avatar">
               {(currentUser?.name || currentUser?.email || "A")[0].toUpperCase()}
             </div>
+            <span className="bp-user-badge__name">
+              {currentUser?.name || currentUser?.email?.split("@")[0] || "Admin"}
+            </span>
           </div>
+          <button className="bp-logout" onClick={handleLogout}>Sign out</button>
         </div>
       </header>
 
@@ -4316,36 +4398,15 @@ export default function SuperAdminDashboard() {
         background:"#f5f0e8", flexShrink:0, zIndex:9,
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:0 }}>
-          {/* Scope pill */}
-          <div style={{
-            display:"flex", alignItems:"center", gap:8, padding:"0 16px",
-            height:52, borderRight:"1px solid #ddd6c8", minWidth:230, cursor: inOrgView ? "pointer" : "default",
-          }} onClick={inOrgView ? handleExitOrg : undefined}>
-            <div style={{
-              width:32, height:32, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center",
-              background: inOrgView ? orgAvatarColor(activeOrg?.name ?? "") : "#ddd6c8",
-              fontSize: inOrgView ? 11 : 16, fontWeight:800, color: inOrgView ? "#fff" : "#9ca3af", flexShrink:0,
-            }}>
-              {inOrgView ? orgInitials(activeOrg?.name ?? "") : "🌐"}
-            </div>
-            <div>
-              <div style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"#9ca3af" }}>
-                {inOrgView ? "Organization" : "Scope"}
-              </div>
-              <div style={{ fontSize:12, fontWeight:700, color:"#1a1a2e" }}>
-                {inOrgView ? activeOrg?.name : "All organizations"}
-              </div>
-            </div>
-          </div>
-          {/* Breadcrumb */}
-          <div style={{ padding:"0 20px", fontSize:11, fontWeight:600, color:"#9ca3af", letterSpacing:"0.05em", textTransform:"uppercase" }}>
+          {/* Breadcrumb — aligns with sidebar width */}
+          <div style={{ padding:"0 20px", minWidth:230, borderRight:"1px solid #ddd6c8", height:52, display:"flex", alignItems:"center", fontSize:11, fontWeight:600, color:"#9ca3af", letterSpacing:"0.05em", textTransform:"uppercase" }}>
             {inOrgView
               ? <>
                   <span style={{ cursor:"pointer" }} onClick={handleExitOrg}>Organizations</span>
                   {" / "}<span>{activeOrg?.name?.toUpperCase()}</span>
                   {" / "}<span style={{ color:"#1a1a2e" }}>{(VIEW_LABELS[activeView] ?? activeView).toUpperCase()}</span>
                 </>
-              : "Organizations"
+              : <span style={{ color:"#1a1a2e", fontWeight:700 }}>Organizations</span>
             }
           </div>
         </div>
@@ -4363,8 +4424,11 @@ export default function SuperAdminDashboard() {
             />
             <span style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", fontSize:10, color:"#9ca3af", background:"#f5f0e8", padding:"1px 4px", borderRadius:4, border:"1px solid #ddd6c8" }}>⌘K</span>
           </div>
-          {inOrgView && (
+          {inOrgView && activeView === "org-dashboard" && (
             <button className="bp-exit-btn" onClick={handleExitOrg}>← Exit org</button>
+          )}
+          {inOrgView && activeView !== "org-dashboard" && (
+            <button className="bp-exit-btn" onClick={() => handleNavClick("org-dashboard")}>← Dashboard</button>
           )}
         </div>
       </div>
@@ -4374,6 +4438,53 @@ export default function SuperAdminDashboard() {
 
         {/* ── Sidebar ── */}
         <aside className="bp-sidebar">
+
+          {/* Scope badge — clickable to go back to org list when inside an org */}
+          <div
+            onClick={inOrgView ? handleExitOrg : undefined}
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "12px 14px",
+              borderBottom: "1px solid #ddd6c8",
+              cursor: inOrgView ? "pointer" : "default",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => { if (inOrgView) e.currentTarget.style.background = "rgba(0,0,0,0.04)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            {inOrgView ? (
+              <>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                  background: orgAvatarColor(activeOrg?.name ?? ""),
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 800, color: "#fff",
+                }}>
+                  {orgInitials(activeOrg?.name ?? "")}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af", marginBottom: 2 }}>
+                    Organization
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {activeOrg?.name ?? "—"}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                  background: "#e0d9cc",
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
+                }}>🌐</div>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af", marginBottom: 2 }}>Scope</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1a1a2e" }}>All organizations</div>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Nav items */}
           <nav className="bp-nav">

@@ -2625,3 +2625,184 @@
   .bp-org-table th:nth-child(3), .bp-org-table td:nth-child(3),
   .bp-org-table th:nth-child(7), .bp-org-table td:nth-child(7) { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Light-theme overrides — module tabs inside bp-content
+   ═══════════════════════════════════════════════════════════ */
+
+/* Content area base */
+.bp-content .tab-content,
+.bp-content .bulk-view-enter {
+  background: #f5f0e8;
+}
+
+/* Cards */
+.bp-content .card {
+  background: #ffffff;
+  border: 1px solid #e0d9cc;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.bp-content .card__header {
+  border-bottom: 1px solid #ede8de;
+}
+.bp-content .card__title { color: #1a1a2e; }
+.bp-content .card__count {
+  background: #e0d9cc;
+  color: #5c5547;
+}
+
+/* Primary button → red */
+.bp-content .btn--primary,
+.bp-content .btn--primary:not(:disabled) {
+  background: #c0392b;
+  border-color: #c0392b;
+  color: #fff;
+}
+.bp-content .btn--primary:hover:not(:disabled) { background: #a93226; border-color: #a93226; }
+.bp-content .btn--primary:disabled { background: #e0a09a; border-color: #e0a09a; }
+
+/* Ghost button */
+.bp-content .btn--ghost {
+  border-color: #ddd6c8;
+  color: #5c5547;
+  background: #fff;
+}
+.bp-content .btn--ghost:hover { border-color: #a8a098; color: #1a1a2e; background: #faf7f2; }
+.bp-content .btn--ghost.btn--active {
+  background: #1a1a2e;
+  color: #fff;
+  border-color: #1a1a2e;
+}
+
+/* Danger button */
+.bp-content .btn--danger {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+.bp-content .btn--danger:hover { background: #fecaca; }
+
+/* Form inputs */
+.bp-content .form__input {
+  background: #ffffff;
+  border-color: #ddd6c8;
+  color: #1a1a2e;
+}
+.bp-content .form__input:focus { border-color: #a8a098; }
+.bp-content .form__label { color: #374151; }
+.bp-content .form__select { background: #ffffff; }
+
+/* Tables */
+.bp-content .tbl { background: #fff; }
+.bp-content .tbl thead th {
+  background: #faf7f2;
+  color: #9ca3af;
+  border-bottom: 1px solid #ede8de;
+}
+.bp-content .tbl tbody td { border-bottom: 1px solid #f5f0e8; color: #374151; }
+.bp-content .tbl tbody tr:hover td { background: #fdf9f5; }
+.bp-content .tbl__muted { color: #9ca3af; }
+.bp-content .tbl__mono { color: #6b7280; }
+
+/* Status badges in tables */
+.bp-content .badge--active    { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.bp-content .badge--inactive  { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.bp-content .badge--system    { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+.bp-content .badge--global    { background: #f3e8ff; color: #6b21a8; border-color: #e9d5ff; }
+.bp-content .badge--org       { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+
+/* Expand panels */
+.bp-content .expand-panel {
+  background: #faf7f2;
+  border-top: 1px solid #ede8de;
+}
+.bp-content .expand-panel__title { color: #1a1a2e; }
+.bp-content .expand-panel__readonly { color: #9ca3af; }
+
+/* Empty states */
+.bp-content .empty-state { background: transparent; }
+.bp-content .empty-state__text { color: #9ca3af; }
+
+/* Status / error text */
+.bp-content .status { color: #6b7280; }
+.bp-content .status--error { color: #c0392b; }
+
+/* Tabs (active users / deleted users) */
+.bp-content .users-panel__tab--active { border-bottom-color: #c0392b; color: #c0392b; }
+
+/* Error banners */
+.bp-content .error-banner {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+/* Bulk module */
+.bp-content .bulk-page-hero__title { color: #1a1a2e; }
+.bp-content .bulk-page-hero__sub   { color: #6b7280; }
+.bp-content .bulk-kpi {
+  background: #fff;
+  border: 1px solid #e0d9cc;
+  border-radius: 8px;
+}
+.bp-content .bulk-kpi__val { color: #1a1a2e; }
+.bp-content .bulk-kpi__lbl { color: #9ca3af; }
+.bp-content .bulk-upload-reqs {
+  background: #fff;
+  border: 1px solid #e0d9cc;
+  border-radius: 8px;
+}
+.bp-content .bulk-upload-label {
+  background: #faf7f2;
+  border-color: #ddd6c8;
+  color: #6b7280;
+}
+.bp-content .bulk-job-card {
+  background: #fff;
+  border: 1px solid #e0d9cc;
+}
+.bp-content .bulk-job-card--active { border-color: #c0392b; }
+.bp-content .bulk-job-card__name  { color: #1a1a2e; }
+.bp-content .bulk-job-card__sep   { color: #ddd6c8; }
+.bp-content .bulk-summary-card    { background: #fff; border: 1px solid #e0d9cc; }
+.bp-content .bulk-summary-card__label { color: #9ca3af; }
+.bp-content .bulk-summary-card__value { color: #1a1a2e; }
+.bp-content .bulk-filter-check { color: #6b7280; border-color: #ddd6c8; }
+.bp-content .bulk-filter-check--on { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+.bp-content .bulk-search-input {
+  background: #fff;
+  border-color: #ddd6c8;
+  color: #1a1a2e;
+}
+.bp-content .bulk-pagination .btn--ghost { color: #6b7280; }
+
+/* Audit module */
+.bp-content .action-badge        { background: #f5f0e8; color: #5c5547; border-color: #ddd6c8; }
+.bp-content .action-badge--create { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.bp-content .action-badge--update { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+.bp-content .action-badge--delete { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.bp-content .action-badge--login  { background: #f3e8ff; color: #6b21a8; border-color: #e9d5ff; }
+.bp-content .action-badge--assign { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.bp-content .action-badge--revoke { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.bp-content .action-badge--upload { background: #cffafe; color: #155e75; border-color: #a5f3fc; }
+.bp-content .action-badge--read   { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
+
+/* Role tab chips */
+.bp-content .ut-role-row { border-color: #ede8de; background: #faf7f2; }
+.bp-content .ut-role-row__name { color: #1a1a2e; }
+
+/* Consumer users */
+.bp-content .cu-stat-card { background: #fff; border: 1px solid #e0d9cc; }
+.bp-content .cu-stat-val   { color: #1a1a2e; }
+
+/* Generic tab */
+.bp-content .generic-tab__hero-title { color: #1a1a2e; }
+.bp-content .generic-tab__perm-card  { background: #fff; border: 1px solid #e0d9cc; }
+.bp-content .generic-tab__perm-code  { color: #374151; }
+
+/* Modal overlay */
+.bp-content .uc-overlay { background: rgba(0,0,0,0.4); }
+.bp-content .uc-modal   { background: #fff; border: 1px solid #e0d9cc; box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
+.bp-content .uc-modal__title { color: #1a1a2e; }
+.bp-content .uc-modal__body  { color: #6b7280; }

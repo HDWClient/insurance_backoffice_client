@@ -2019,10 +2019,23 @@ function BulkModuleTab({ actions, onJobsLoad }) {
     setJobsLoading(true);
     try {
       const data = await bulkService.listJobs();
-      const items = data.items ?? [];
+      const items = data.content ?? data.items ?? [];
       setJobs(items);
       setJobsError(null);
       onJobsLoad?.(items.length);
+
+      // Silently fetch rowStats for each job so the cards show accurate per-status counts
+      items.forEach(async (job) => {
+        if (job.rowStats) return; // already have it
+        try {
+          const detail = await bulkService.getJob(job.id ?? job.jobNumber);
+          if (detail?.rowStats) {
+            setJobs((prev) => prev.map((j) =>
+              (j.id === job.id ? { ...j, rowStats: detail.rowStats } : j)
+            ));
+          }
+        } catch { /* silently ignore */ }
+      });
     } catch (err) {
       const status = err?.response?.status;
       const code   = err?.response?.data?.errorCode;
@@ -2301,6 +2314,7 @@ function BulkModuleTab({ actions, onJobsLoad }) {
           {[
             { label: "Total Rows",  value: detailJob.totalRows  ?? "—", accent: "#6366f1" },
             { label: "Verified",    value: detailJob.parsedRows  ?? "—", accent: "#16a34a" },
+            { label: "Rejected",    value: stats.REJECTED ?? 0,          accent: (stats.REJECTED ?? 0) > 0 ? "#dc2626" : "#94a3b8" },
             { label: "Invalid",     value: detailJob.invalidRows ?? 0,   accent: (detailJob.invalidRows ?? 0) > 0 ? "#dc2626" : "#94a3b8" },
             { label: "Submitted",   value: detailJob.createdAt ? new Date(detailJob.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "—", accent: "#64748b", small: true },
           ].map(({ label, value, accent, small }) => (
@@ -2585,10 +2599,11 @@ function BulkModuleTab({ actions, onJobsLoad }) {
   }
 
   /* ── LIST VIEW ── */
-  const totalRows    = jobs.reduce((s, j) => s + (j.totalRows   ?? 0), 0);
-  const totalValid   = jobs.reduce((s, j) => s + (j.parsedRows  ?? 0), 0);
-  const totalInvalid = jobs.reduce((s, j) => s + (j.invalidRows ?? 0), 0);
-  const activeJobs   = jobs.filter(j => j.status === "PENDING" || j.status === "PROCESSING").length;
+  const totalRows     = jobs.reduce((s, j) => s + (j.totalRows   ?? 0), 0);
+  const totalValid    = jobs.reduce((s, j) => s + (j.parsedRows  ?? 0), 0);
+  const totalInvalid  = jobs.reduce((s, j) => s + (j.invalidRows ?? 0), 0);
+  const totalRejected = jobs.reduce((s, j) => s + (j.rowStats?.REJECTED ?? 0), 0);
+  const activeJobs    = jobs.filter(j => j.status === "PENDING" || j.status === "PROCESSING").length;
 
   return (
     <div className="tab-content bulk-view-enter">
@@ -2620,12 +2635,18 @@ function BulkModuleTab({ actions, onJobsLoad }) {
             <span className="bulk-kpi__val">{totalValid > 0 ? totalValid.toLocaleString() : "—"}</span>
             <span className="bulk-kpi__lbl">Verified Rows</span>
           </div>
-          {totalInvalid > 0 && (
-            <div className="bulk-kpi bulk-kpi--warn">
-              <span className="bulk-kpi__val">{totalInvalid.toLocaleString()}</span>
-              <span className="bulk-kpi__lbl">Invalid</span>
-            </div>
-          )}
+          <div className="bulk-kpi bulk-kpi--warn">
+            <span className="bulk-kpi__val" style={{ color: totalInvalid > 0 ? undefined : "#94a3b8" }}>
+              {totalInvalid > 0 ? totalInvalid.toLocaleString() : "0"}
+            </span>
+            <span className="bulk-kpi__lbl">Invalid Rows</span>
+          </div>
+          <div className="bulk-kpi bulk-kpi--warn">
+            <span className="bulk-kpi__val" style={{ color: totalRejected > 0 ? "#dc2626" : "#94a3b8" }}>
+              {totalRejected > 0 ? totalRejected.toLocaleString() : "0"}
+            </span>
+            <span className="bulk-kpi__lbl">Rejected Rows</span>
+          </div>
         </div>
       </div>
 
@@ -2784,51 +2805,86 @@ function BulkModuleTab({ actions, onJobsLoad }) {
                       <span style={{ fontSize:11, color:"#9ca3af" }}>{statusDesc}</span>
                     </div>
 
-                    {/* Row counts summary */}
-                    {(job.totalRows ?? 0) > 0 && (
-                      <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, marginTop:5, flexWrap:"wrap" }}>
-                        <span style={{ color:"#374151", fontWeight:600 }}>
-                          {(job.totalRows ?? 0).toLocaleString()} rows total
-                        </span>
-                        <span style={{ color:"#ddd6c8" }}>·</span>
-                        <span style={{ color:"#16a34a", fontWeight:600 }}>
-                          ✓ {(job.parsedRows ?? 0).toLocaleString()} verified
-                        </span>
-                        {hasInvalid && (
-                          <>
+                    {/* Full status breakdown */}
+                    {(job.totalRows ?? 0) > 0 && (() => {
+                      const total       = job.totalRows  ?? 0;
+                      const verified    = job.parsedRows ?? 0;
+                      const invalid     = job.invalidRows ?? 0;
+                      const hasRowStats = Object.keys(rs).length > 0;
+
+                      // Per-status counts — only meaningful when rowStats is available
+                      const enrolledCount = rs.PROMOTED   ?? 0;
+                      const inProgCount   = (rs.STAGED ?? 0) + (rs.OTP_SENT ?? 0) + (rs.VERIFIED ?? 0);
+                      const draftCount    = rs.DRAFT      ?? 0;
+                      const rejectedCount = rs.REJECTED   ?? 0;
+                      const failedCount   = (rs.INVITE_FAILED ?? 0) + (rs.EXPIRED ?? 0);
+                      const cancelCount   = (rs.CANCELLED ?? 0) + (rs.SUPERSEDED ?? 0);
+
+                      // "Other" — rows not accounted for by the counts we have
+                      // When rowStats available: total minus all known statuses
+                      // When not: total minus verified and invalid (the only known counts)
+                      const knownSum = hasRowStats
+                        ? enrolledCount + inProgCount + draftCount + rejectedCount + failedCount + cancelCount + invalid
+                        : verified + invalid;
+                      const otherCount = Math.max(0, total - knownSum);
+
+                      return (
+                        <>
+                          {/* Summary line */}
+                          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, marginTop:5, flexWrap:"wrap" }}>
+                            <span style={{ color:"#374151", fontWeight:700 }}>{total.toLocaleString()} rows total</span>
                             <span style={{ color:"#ddd6c8" }}>·</span>
-                            <span style={{ color:"#dc2626", fontWeight:600 }}>
-                              ⚠ {job.invalidRows} invalid
+                            <span style={{ color:"#16a34a", fontWeight:600 }}>✓ {verified} verified</span>
+                            <span style={{ color:"#ddd6c8" }}>·</span>
+                            <span style={{ color: rejectedCount > 0 ? "#dc2626" : "#9ca3af", fontWeight:600 }}>
+                              ❌ {hasRowStats ? rejectedCount : "—"} rejected
                             </span>
-                          </>
-                        )}
-                      </div>
-                    )}
+                            {invalid > 0 && (
+                              <>
+                                <span style={{ color:"#ddd6c8" }}>·</span>
+                                <span style={{ color:"#c0392b", fontWeight:600 }}>⚠ {invalid} invalid</span>
+                              </>
+                            )}
+                            <span style={{ color:"#ddd6c8" }}>·</span>
+                            <span style={{ color: cancelCount > 0 ? "#6b7280" : "#d1d5db", fontWeight:600 }}>
+                              ⛔ {hasRowStats ? cancelCount : "—"} cancelled
+                            </span>
+                          </div>
 
-                    {/* Invalid rows elaboration */}
-                    {hasInvalid && (
-                      <div style={{ fontSize:11, marginTop:5, padding:"6px 10px",
-                        background:"#fff8f0", border:"1px solid #fed7aa", borderRadius:6, lineHeight:1.6 }}>
-                        <span style={{ fontWeight:700, color:"#c0392b" }}>
-                          ⚠ {job.invalidRows} row{job.invalidRows !== 1 ? "s" : ""} could not be imported
-                        </span>
-                        {" — "}these rows contain missing or incorrectly formatted fields
-                        (e.g. invalid email, missing mobile, or bad date format).
-                        {" "}
-                        <span style={{ color:"#9ca3af" }}>Open the job to review parse errors and fix the source file.</span>
-                      </div>
-                    )}
+                          {/* Per-status pills — only when rowStats is available */}
+                          {hasRowStats && (
+                            <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:6 }}>
+                              {enrolledCount > 0 && pill(`✅ ${enrolledCount} Enrolled`,     "#16a34a", "#f0fdf4")}
+                              {inProgCount   > 0 && pill(`📬 ${inProgCount} In Progress`,    "#6366f1", "#eff6ff")}
+                              {draftCount    > 0 && pill(`📝 ${draftCount} Draft`,           "#94a3b8", "#f8fafc")}
+                              {pill(`❌ ${rejectedCount} Rejected`, rejectedCount > 0 ? "#dc2626" : "#9ca3af", rejectedCount > 0 ? "#fef2f2" : "#f9fafb")}
+                              {failedCount   > 0 && pill(`⚠️ ${failedCount} Invite Issues`, "#f59e0b", "#fffbeb")}
+                              {cancelCount   > 0 && pill(`⛔ ${cancelCount} Cancelled`,     "#6b7280", "#f9fafb")}
+                              {otherCount    > 0 && pill(`○ ${otherCount} Other`,           "#9ca3af", "#f9fafb")}
+                            </div>
+                          )}
 
-                    {/* Per-status breakdown pills (when rowStats available) */}
-                    {Object.keys(rs).length > 0 && (
-                      <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:6 }}>
-                        {promoted   > 0 && pill(`✅ ${promoted} Enrolled`,      "#16a34a", "#f0fdf4")}
-                        {inProgress > 0 && pill(`📬 ${inProgress} In Progress`,  "#6366f1", "#eff6ff")}
-                        {draft      > 0 && pill(`📝 ${draft} Draft`,             "#94a3b8", "#f8fafc")}
-                        {rejected   > 0 && pill(`❌ ${rejected} Rejected`,       "#dc2626", "#fef2f2")}
-                        {inviteFail > 0 && pill(`⚠️ ${inviteFail} Invite Issues`, "#f59e0b", "#fffbeb")}
-                      </div>
-                    )}
+                          {/* When no rowStats: show unaccounted rows */}
+                          {!hasRowStats && otherCount > 0 && (
+                            <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>
+                              {otherCount} row{otherCount !== 1 ? "s" : ""} in progress or awaiting action
+                            </div>
+                          )}
+
+                          {/* Invalid elaboration */}
+                          {invalid > 0 && (
+                            <div style={{ fontSize:11, marginTop:5, padding:"6px 10px",
+                              background:"#fff8f0", border:"1px solid #fed7aa", borderRadius:6, lineHeight:1.6 }}>
+                              <span style={{ fontWeight:700, color:"#c0392b" }}>
+                                ⚠ {invalid} row{invalid !== 1 ? "s" : ""} could not be imported
+                              </span>
+                              {" — "}missing or incorrectly formatted fields (invalid email, mobile, or date format).{" "}
+                              <span style={{ color:"#9ca3af" }}>Open the job to review and fix.</span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {/* Progress bar */}
                     {(job.totalRows ?? 0) > 0 && (
@@ -4281,12 +4337,10 @@ function OrgDashboardView({ onNavigate }) {
         <div className="bp-stat-box">
           <div className="bp-stat-box__label">Total Users</div>
           <div className="bp-stat-box__value">{totalMembers.toLocaleString()}</div>
-          <div className="bp-stat-box__sub">consumer members</div>
         </div>
         <div className="bp-stat-box">
           <div className="bp-stat-box__label">Admin Operators</div>
           <div className="bp-stat-box__value">{usersTotal || "—"}</div>
-          <div className="bp-stat-box__sub">backoffice users</div>
         </div>
         <div className="bp-stat-box">
           <div className="bp-stat-box__label">No Of Bulk Operations</div>
@@ -4834,6 +4888,8 @@ export default function SuperAdminDashboard() {
     switchOrg(org);
     setInOrgView(true);
     setActiveView("org-dashboard");
+    // Push a history entry so the browser back button exits the org view
+    window.history.pushState({ orgView: true }, "");
   };
 
   const handleExitOrg = () => {
@@ -4849,6 +4905,21 @@ export default function SuperAdminDashboard() {
     }
     dispatch(fetchMyPermissions());
   };
+
+  // Intercept browser back button: exit org view instead of leaving the page
+  useEffect(() => {
+    const onPopState = (e) => {
+      if (inOrgView) {
+        // Prevent the default navigation and exit org view instead
+        e.preventDefault();
+        handleExitOrg();
+        // Re-push so the back button keeps working for subsequent presses
+        window.history.pushState({ orgView: false }, "");
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [inOrgView]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select default org for X-ORG-ID header (previously done by OrgDropdown)
   useEffect(() => {

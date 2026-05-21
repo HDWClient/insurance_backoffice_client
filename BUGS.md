@@ -1,5 +1,11 @@
 ## 2026-05-21 — code-review (staged): clean
 
+No findings. Remove max-width constraints from all view containers so content fills full width; responsive two-column grid in org dashboard.
+
+---
+
+## 2026-05-21 — code-review (staged): clean
+
 No findings. Strip v0: API prefix from bulk row fields, upfront row/invalid summary banner, job card enhancements (date, status desc, per-status pills), label renames, Invites Sent cleaned up.
 
 ---

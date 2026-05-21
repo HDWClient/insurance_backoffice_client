@@ -4310,7 +4310,7 @@ function OrgDashboardView({ onNavigate }) {
       </div>
 
       {/* Two-column body */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 420px", gap:16 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr minmax(360px, 38%)", gap:16 }}>
 
         {/* Live activity */}
         <div style={{ background:"#fff", border:"1px solid #e0d9cc", borderRadius:10, padding:"20px 24px" }}>
@@ -4455,7 +4455,7 @@ function SystemSettingsView() {
   );
 
   return (
-    <div style={{ padding:"28px 32px", maxWidth:900 }}>
+    <div style={{ padding:"28px 32px" }}>
       {/* Header */}
       <p style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"#9ca3af", margin:"0 0 6px" }}>
         PLATFORM · SYSTEM SETTINGS
@@ -4622,7 +4622,7 @@ function OrgSettingsView({ can }) {
   };
 
   return (
-    <div style={{ padding:"28px 32px", maxWidth:1100 }}>
+    <div style={{ padding:"28px 32px" }}>
       {/* Header */}
       <p style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"#9ca3af", margin:"0 0 6px" }}>
         {org.slug ? `${org.slug.toUpperCase()}.KINKO.IN` : "—"} · Organization Settings

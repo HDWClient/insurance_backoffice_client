@@ -2372,7 +2372,7 @@
 .bp-content { flex: 1; overflow-y: auto; background: #f5f0e8; min-width: 0; }
 
 /* ── Org landing page ── */
-.bp-landing { padding: 32px 36px; max-width: 1300px; }
+.bp-landing { padding: 28px 32px; }
 
 .bp-landing__hdr {
   display: flex; align-items: flex-start;
@@ -2560,7 +2560,7 @@
 .bp-enter-btn:hover { background: #1a1a2e; color: #fff; }
 
 /* ── Org dashboard (light) ── */
-.bp-org-dash { padding: 32px 36px; max-width: 1000px; }
+.bp-org-dash { padding: 28px 32px; }
 .bp-org-dash__hdr { margin-bottom: 28px; }
 .bp-org-dash__title {
   font-size: 28px; font-weight: 800; color: #1a1a2e;

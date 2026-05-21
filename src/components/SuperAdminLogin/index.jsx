@@ -156,7 +156,7 @@ export default function SuperAdminLogin() {
             <div className="sa-orbit-track sa-orbit-track--1">
               <div className="sa-orbit-dot">
                 <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
-                  <path d="M12 2L3 6.5v5.5c0 6 3.9 11.7 9 13.5 5.1-1.8 9-7.5 9-13.5V6.5L12 2z" fill="#818cf8"/>
+                  <path d="M12 2L3 6.5v5.5c0 6 3.9 11.7 9 13.5 5.1-1.8 9-7.5 9-13.5V6.5L12 2z" fill="#e74c3c"/>
                 </svg>
               </div>
             </div>
@@ -165,7 +165,7 @@ export default function SuperAdminLogin() {
             <div className="sa-orbit-track sa-orbit-track--2">
               <div className="sa-orbit-dot">
                 <svg viewBox="0 0 24 24" fill="none" width="18" height="18">
-                  <rect x="4" y="2" width="16" height="20" rx="2" fill="#38bdf8"/>
+                  <rect x="4" y="2" width="16" height="20" rx="2" fill="#c0392b"/>
                   <rect x="7" y="7" width="10" height="1.5" rx="0.75" fill="white" fillOpacity="0.9"/>
                   <rect x="7" y="11" width="10" height="1.5" rx="0.75" fill="white" fillOpacity="0.9"/>
                   <rect x="7" y="15" width="6" height="1.5" rx="0.75" fill="white" fillOpacity="0.9"/>
@@ -187,15 +187,15 @@ export default function SuperAdminLogin() {
               <svg viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <linearGradient id="sg1" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity="0.75"/>
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.3"/>
+                    <stop offset="0%" stopColor="#e74c3c" stopOpacity="0.85"/>
+                    <stop offset="100%" stopColor="#c0392b" stopOpacity="0.4"/>
                   </linearGradient>
                 </defs>
                 <path d="M50 5L10 22v30c0 26 17 48 40 55 23-7 40-29 40-55V22L50 5z"
-                  fill="url(#sg1)" stroke="#818cf8" strokeWidth="2.5"/>
+                  fill="url(#sg1)" stroke="#e74c3c" strokeWidth="2.5"/>
                 <path d="M50 20L22 34v18c0 18 11.5 32.5 28 37.5C66.5 84.5 78 70 78 52V34L50 20z"
-                  fill="rgba(99,102,241,0.22)"/>
-                <path d="M36 56l9 9 19-19" stroke="#c7d2fe" strokeWidth="4.5"
+                  fill="rgba(192,57,43,0.25)"/>
+                <path d="M36 56l9 9 19-19" stroke="#fff" strokeWidth="4.5"
                   strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
@@ -232,14 +232,14 @@ export default function SuperAdminLogin() {
               <svg className="sa-card-shield-svg" viewBox="0 0 100 115" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <linearGradient id="csg" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0%" stopColor="#6366f1"/>
-                    <stop offset="100%" stopColor="#4f46e5"/>
+                    <stop offset="0%" stopColor="#e74c3c"/>
+                    <stop offset="100%" stopColor="#c0392b"/>
                   </linearGradient>
                 </defs>
                 <path d="M50 5L10 22v30c0 26 17 48 40 55 23-7 40-29 40-55V22L50 5z"
-                  fill="url(#csg)" stroke="#a5b4fc" strokeWidth="2.5"/>
+                  fill="url(#csg)" stroke="#e74c3c" strokeWidth="2.5"/>
                 <path d="M50 20L22 34v18c0 18 11.5 32.5 28 37.5C66.5 84.5 78 70 78 52V34L50 20z"
-                  fill="rgba(99,102,241,0.3)"/>
+                  fill="rgba(192,57,43,0.3)"/>
                 <path d="M36 56l9 9 19-19" stroke="white" strokeWidth="5"
                   strokeLinecap="round" strokeLinejoin="round"/>
               </svg>

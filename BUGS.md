@@ -1,3 +1,9 @@
+## 2026-05-21 — code-review (staged): clean
+
+No findings. Login reskin (warm beige + red theme), OrgSettingsView, SystemSettingsView, Grid/Export on org landing, filter summary chips, daily report removed.
+
+---
+
 ## 2026-05-20 — code-review (staged) [layout & audit]
 
 ### [Low] AUDIT_MODULES array is now unused dead code

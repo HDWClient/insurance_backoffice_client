@@ -3259,39 +3259,68 @@ function AuditModuleTab({ actions, isGlobal = false }) {
         </div>
 
         {/* ── Active filter chips ── */}
-        {hasActiveFilters && (
-          <div style={{
-            display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center",
-            padding: "5px 16px",
-            borderBottom: "1px solid rgba(99,102,241,0.07)",
-            background: "rgba(99,102,241,0.02)",
-          }}>
-            <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Filters:</span>
-            {moduleFilter && (
-              <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                background: "rgba(99,102,241,0.1)", color: "#4f46e5", border: "1px solid rgba(99,102,241,0.2)" }}>
-                {AUDIT_MODULE_LABELS[moduleFilter] ?? moduleFilter}
+        {hasActiveFilters && (() => {
+          const chipStyle = { display:"inline-flex", alignItems:"center", gap:5, fontSize:11, fontWeight:600,
+            padding:"3px 9px", borderRadius:20, border:"1px solid #ddd6c8", background:"#fff",
+            color:"#374151", whiteSpace:"nowrap" };
+          const xBtn = (onClear) => (
+            <button onClick={onClear} style={{ background:"none", border:"none", cursor:"pointer",
+              fontSize:12, color:"#9ca3af", padding:0, lineHeight:1, marginLeft:2 }}
+              title="Remove filter">×</button>
+          );
+          const orgName = isGlobal && orgFilter
+            ? (allOrgs.find((o) => o.id === orgFilter)?.name ?? orgFilter)
+            : null;
+          return (
+            <div style={{
+              display:"flex", flexWrap:"wrap", gap:6, alignItems:"center",
+              padding:"8px 16px", borderBottom:"1px solid #ede8de",
+              background:"#faf7f2",
+            }}>
+              <span style={{ fontSize:11, color:"#9ca3af", fontWeight:700, textTransform:"uppercase", letterSpacing:"0.06em", marginRight:2 }}>
+                Active filters:
               </span>
-            )}
-            {actionFilter && (
-              <span className={`action-badge action-badge--${actionFilter.toLowerCase()}`} style={{ fontSize: 10 }}>
-                {actionFilter}
-              </span>
-            )}
-            {fromDate && (
-              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
-                background: "rgba(100,116,139,0.1)", color: "#475569", border: "1px solid #dde6f2" }}>
-                From {fromDate}
-              </span>
-            )}
-            {toDate && (
-              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
-                background: "rgba(100,116,139,0.1)", color: "#475569", border: "1px solid #dde6f2" }}>
-                To {toDate}
-              </span>
-            )}
-          </div>
-        )}
+              {moduleFilter && (
+                <span style={{ ...chipStyle, background:"#fdf5f0", borderColor:"#f5c6bb", color:"#c0392b" }}>
+                  Type: {AUDIT_MODULE_LABELS[moduleFilter] ?? moduleFilter}
+                  {xBtn(() => { setModuleFilter(""); loadLogs(0, "", actionFilter, fromDate, toDate, orgFilter); })}
+                </span>
+              )}
+              {actionFilter && (
+                <span style={{ ...chipStyle, background:"#f0fdf4", borderColor:"#bbf7d0", color:"#15803d" }}>
+                  Action: {actionFilter}
+                  {xBtn(() => { setActionFilter(""); loadLogs(0, moduleFilter, "", fromDate, toDate, orgFilter); })}
+                </span>
+              )}
+              {orgName && (
+                <span style={{ ...chipStyle, background:"#eff6ff", borderColor:"#bfdbfe", color:"#1d4ed8" }}>
+                  Org: {orgName}
+                  {xBtn(() => { setOrgFilter(""); loadLogs(0, moduleFilter, actionFilter, fromDate, toDate, ""); })}
+                </span>
+              )}
+              {fromDate && (
+                <span style={chipStyle}>
+                  From: {fromDate}
+                  {xBtn(() => { setFromDate(""); loadLogs(0, moduleFilter, actionFilter, "", toDate, orgFilter); })}
+                </span>
+              )}
+              {toDate && (
+                <span style={chipStyle}>
+                  To: {toDate}
+                  {xBtn(() => { setToDate(""); loadLogs(0, moduleFilter, actionFilter, fromDate, "", orgFilter); })}
+                </span>
+              )}
+              <button onClick={handleClearFilters}
+                style={{ marginLeft:"auto", fontSize:11, color:"#9ca3af", background:"none",
+                  border:"none", cursor:"pointer", fontFamily:"inherit", padding:"2px 6px",
+                  borderRadius:6, transition:"color 0.15s" }}
+                onMouseEnter={(e) => e.currentTarget.style.color="#c0392b"}
+                onMouseLeave={(e) => e.currentTarget.style.color="#9ca3af"}>
+                Clear all
+              </button>
+            </div>
+          );
+        })()}
 
         {/* ── Error ── */}
         {error && (
@@ -3760,13 +3789,38 @@ function OrgLandingView({ onEnterOrg, can }) {
   const orgs      = useSelector((s) => s.orgs?.orgs ?? []);
   const loading   = useSelector((s) => s.orgs?.loading ?? false);
 
-  const [search, setSearch]           = useState("");
+  const [search, setSearch]             = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [showCreate, setShowCreate]   = useState(false);
-  const [newName, setNewName]         = useState("");
-  const [newSlug, setNewSlug]         = useState("");
+  const [viewMode, setViewMode]         = useState("table"); // "table" | "grid"
+  const [showCreate, setShowCreate]     = useState(false);
+  const [newName, setNewName]           = useState("");
+  const [newSlug, setNewSlug]           = useState("");
   const [createErrors, setCreateErrors] = useState({});
-  const [creating, setCreating]       = useState(false);
+  const [creating, setCreating]         = useState(false);
+
+  const handleExport = () => {
+    const headers = ["Name","Slug","Status","Members","Operators","Bulk Jobs","Created","Last Updated"];
+    const rows = filtered.map((o) => [
+      `"${(o.name ?? "").replace(/"/g,'""')}"`,
+      o.slug ?? "",
+      o.status ?? "active",
+      o.consumerUserCount ?? 0,
+      o.cmsUserCount ?? 0,
+      o.bulkOperationsCount ?? 0,
+      o.createdAt ? new Date(o.createdAt).toISOString().slice(0,10) : "",
+      o.updatedAt ? new Date(o.updatedAt).toISOString().slice(0,10) : "",
+    ].join(","));
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement("a"), {
+      href: url, download: `organisations-${new Date().toISOString().slice(0,10)}.csv`,
+    });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const filtered = orgs.filter((o) => {
     const q  = search.toLowerCase();
@@ -3819,10 +3873,10 @@ function OrgLandingView({ onEnterOrg, can }) {
         </div>
         <div className="bp-landing__actions">
           <div className="bp-view-toggle">
-            <button className="bp-view-btn bp-view-btn--active">Table</button>
-            <button className="bp-view-btn">Grid</button>
+            <button className={`bp-view-btn${viewMode === "table" ? " bp-view-btn--active" : ""}`} onClick={() => setViewMode("table")}>Table</button>
+            <button className={`bp-view-btn${viewMode === "grid"  ? " bp-view-btn--active" : ""}`} onClick={() => setViewMode("grid")}>Grid</button>
           </div>
-          <button className="bp-export-btn">↓ Export</button>
+          <button className="bp-export-btn" onClick={handleExport} title="Export as CSV">↓ Export</button>
           {can("ORG_CREATE") && (
             <button className="bp-new-org-btn" onClick={() => setShowCreate(true)}>
               + New organization
@@ -3886,7 +3940,63 @@ function OrgLandingView({ onEnterOrg, can }) {
         <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af" }}>Loading organisations…</div>
       ) : filtered.length === 0 ? (
         <div style={{ padding: "40px 0", textAlign: "center", color: "#9ca3af" }}>No organisations match your search or filter.</div>
+      ) : viewMode === "grid" ? (
+        /* ── Grid view ── */
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px,1fr))", gap:14, marginTop:12 }}>
+          {filtered.map((org) => {
+            const bulkCount = org.bulkOperationsCount ?? 0;
+            return (
+              <div key={org.id}
+                onClick={() => onEnterOrg(org)}
+                style={{
+                  background:"#fff", border:"1px solid #e0d9cc", borderRadius:12,
+                  padding:"20px", cursor:"pointer", transition:"box-shadow 0.15s, border-color 0.15s",
+                  display:"flex", flexDirection:"column", gap:12,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor="#c0392b"; e.currentTarget.style.boxShadow="0 4px 16px rgba(0,0,0,0.08)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor="#e0d9cc"; e.currentTarget.style.boxShadow="none"; }}
+              >
+                {/* Card header */}
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <div style={{ width:40, height:40, borderRadius:10, flexShrink:0,
+                    background: orgAvatarColor(org.name), display:"flex", alignItems:"center",
+                    justifyContent:"center", fontSize:13, fontWeight:800, color:"#fff" }}>
+                    {orgInitials(org.name)}
+                  </div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:14, fontWeight:700, color:"#1a1a2e", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {org.name}
+                      {org.isDefault && <span className="bp-default-tag">Default</span>}
+                    </div>
+                    <div style={{ fontSize:11, fontFamily:"monospace", color:"#9ca3af", marginTop:2 }}>{org.slug}</div>
+                  </div>
+                  <span className={`bp-status ${statusClass(org.status)}`} style={{ marginLeft:"auto", flexShrink:0 }}>
+                    {org.status ?? "active"}
+                  </span>
+                </div>
+                {/* Stats row */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, borderTop:"1px solid #f5f0e8", paddingTop:12 }}>
+                  {[
+                    { label:"Members",   value:(org.consumerUserCount ?? 0).toLocaleString() },
+                    { label:"Operators", value: org.cmsUserCount ?? 0 },
+                    { label:"Bulk",      value: bulkCount, accent: bulkCount > 0 },
+                  ].map(({ label, value, accent }) => (
+                    <div key={label} style={{ textAlign:"center" }}>
+                      <div style={{ fontSize:16, fontWeight:800, color: accent ? "#c0392b" : "#1a1a2e" }}>{value}</div>
+                      <div style={{ fontSize:10, color:"#9ca3af", marginTop:2 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Footer */}
+                <div style={{ fontSize:11, color:"#9ca3af", borderTop:"1px solid #f5f0e8", paddingTop:10 }}>
+                  Updated {timeAgo(org.updatedAt)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
+        /* ── Table view ── */
         <div className="bp-table-wrap">
           <table className="bp-org-table">
             <thead>
@@ -4052,7 +4162,6 @@ function OrgDashboardView({ onNavigate }) {
           </p>
         </div>
         <div style={{ display:"flex", gap:8, flexShrink:0, paddingTop:4 }}>
-          <button className="bp-export-btn" style={{ fontSize:12 }}>📄 Daily report</button>
           <button className="bp-new-org-btn" style={{ fontSize:12 }} onClick={() => onNavigate("BULK")}>↑ New bulk upload</button>
         </div>
       </div>
@@ -4199,6 +4308,122 @@ function OrgDashboardView({ onNavigate }) {
   );
 }
 
+/* ── SystemSettingsView ── */
+function SystemSettingsView() {
+  const orgs       = useSelector((s) => s.orgs?.orgs ?? []);
+  const usersTotal = useSelector((s) => s.users?.totalItems ?? 0);
+  const rolesCount = useSelector((s) => s.roles?.roles?.length ?? 0);
+
+  const activeOrgs   = orgs.filter((o) => (o.status ?? "active") === "active").length;
+  const totalMembers = orgs.reduce((s, o) => s + (o.consumerUserCount ?? 0), 0);
+  const totalBulk    = orgs.reduce((s, o) => s + (o.bulkOperationsCount ?? 0), 0);
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
+
+  const Section = ({ title, children }) => (
+    <div style={{ background:"#fff", border:"1px solid #e0d9cc", borderRadius:10, padding:"22px 26px", marginBottom:16 }}>
+      <h3 style={{ fontSize:14, fontWeight:700, color:"#1a1a2e", margin:"0 0 18px", paddingBottom:12, borderBottom:"1px solid #f5f0e8" }}>{title}</h3>
+      {children}
+    </div>
+  );
+
+  const Row = ({ label, value, mono }) => (
+    <div style={{ display:"grid", gridTemplateColumns:"200px 1fr", gap:8, marginBottom:12, alignItems:"center" }}>
+      <span style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", color:"#9ca3af" }}>{label}</span>
+      <span style={{ fontSize:13, color:"#1a1a2e", fontFamily: mono ? "monospace" : "inherit" }}>{value}</span>
+    </div>
+  );
+
+  const StatCard = ({ label, value, sub, color }) => (
+    <div style={{ background:"#faf7f2", border:"1px solid #e0d9cc", borderRadius:8, padding:"14px 18px", borderLeft:`3px solid ${color ?? "#c0392b"}` }}>
+      <div style={{ fontSize:22, fontWeight:800, color:"#1a1a2e", lineHeight:1 }}>{value}</div>
+      <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.07em", color:"#9ca3af", marginTop:4 }}>{label}</div>
+      {sub && <div style={{ fontSize:11, color:"#9ca3af", marginTop:2 }}>{sub}</div>}
+    </div>
+  );
+
+  const Badge = ({ children, color = "#374151", bg = "#f3f4f6", border = "#e5e7eb" }) => (
+    <span style={{ display:"inline-block", padding:"2px 10px", background:bg, border:`1px solid ${border}`, borderRadius:4, fontSize:11, fontWeight:700, color }}>{children}</span>
+  );
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:900 }}>
+      {/* Header */}
+      <p style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"#9ca3af", margin:"0 0 6px" }}>
+        PLATFORM · SYSTEM SETTINGS
+      </p>
+      <h1 style={{ fontSize:28, fontWeight:800, color:"#1a1a2e", margin:"0 0 5px", letterSpacing:"-0.02em" }}>System Settings</h1>
+      <p style={{ fontSize:13, color:"#6b7280", margin:"0 0 24px" }}>Platform configuration, API details, and system-wide statistics.</p>
+      <hr style={{ border:"none", borderTop:"1px solid #e0d9cc", margin:"0 0 24px" }} />
+
+      {/* Platform stats */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
+        <StatCard label="Organizations"     value={orgs.length}           sub={`${activeOrgs} active`}       color="#4f46e5" />
+        <StatCard label="Total Members"     value={totalMembers.toLocaleString()} sub="across all orgs"       color="#059669" />
+        <StatCard label="Bulk Jobs Active"  value={totalBulk}             sub="in flight"                     color="#c0392b" />
+        <StatCard label="Operators"         value={usersTotal || "—"}     sub="CMS users"                     color="#b45309" />
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        {/* Platform info */}
+        <Section title="Platform Information">
+          <Row label="Environment"   value={<Badge>STAGING</Badge>} />
+          <Row label="Region"        value="ap-south-1" />
+          <Row label="API Version"   value={<Badge color="#1d4ed8" bg="#eff6ff" border="#bfdbfe">v1</Badge>} />
+          <Row label="API Base URL"  value={apiBase} mono />
+          <Row label="Build"         value="Backoffice v2.0" />
+          <Row label="Auth Method"   value="HttpOnly Cookie (JWT + Refresh)" />
+        </Section>
+
+        {/* API configuration */}
+        <Section title="API Configuration">
+          <Row label="Access Token"   value="HttpOnly · 15 min TTL" />
+          <Row label="Refresh Token"  value="HttpOnly · 7 day TTL" />
+          <Row label="Token Refresh"  value={<span style={{ fontFamily:"monospace", fontSize:11, color:"#6b7280" }}>POST /auth/refresh</span>} />
+          <Row label="Org Context"    value={<span style={{ fontFamily:"monospace", fontSize:11, color:"#6b7280" }}>X-ORG-ID header</span>} />
+          <Row label="Permissions"    value={<span style={{ fontFamily:"monospace", fontSize:11, color:"#6b7280" }}>GET /me/permissions</span>} />
+          <Row label="Credentials"    value="withCredentials: true" mono />
+        </Section>
+
+        {/* Organisation summary */}
+        <Section title="Organisation Summary">
+          <Row label="Total Orgs"    value={orgs.length} />
+          <Row label="Active"        value={activeOrgs} />
+          <Row label="Inactive"      value={orgs.filter((o) => o.status === "inactive").length} />
+          <Row label="Default Org"   value={orgs.find((o) => o.isDefault)?.name ?? "—"} />
+          <Row label="Roles Loaded"  value={rolesCount} />
+          <Row label="Bulk Jobs"     value={totalBulk > 0 ? <span style={{ color:"#c0392b", fontWeight:700 }}>{totalBulk} in flight</span> : "0"} />
+        </Section>
+
+        {/* Permissions reference */}
+        <Section title="Permission Modules">
+          {[
+            { module:"ORG",      label:"Organizations",  actions:["READ","CREATE","UPDATE","DELETE","MANAGE"] },
+            { module:"CMS_USER", label:"Manage Users",   actions:["READ","CREATE","UPDATE","DELETE","MANAGE"] },
+            { module:"ROLE",     label:"Roles & Perms",  actions:["READ","CREATE","UPDATE","DELETE","MANAGE","ASSIGN"] },
+            { module:"BULK",     label:"Operations",     actions:["READ","UPLOAD"] },
+            { module:"AUDIT",    label:"Audit Log",      actions:["READ","MANAGE"] },
+            { module:"USER",     label:"Consumer Users", actions:["READ","UPDATE"] },
+          ].map(({ module, label, actions }) => (
+            <div key={module} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+              <span style={{ fontSize:11, fontFamily:"monospace", fontWeight:700, color:"#6b7280", width:80, flexShrink:0 }}>{module}</span>
+              <span style={{ fontSize:11, color:"#9ca3af", flex:1 }}>{label}</span>
+              <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                {actions.map((a) => (
+                  <span key={a} style={{ fontSize:9, fontWeight:700, padding:"1px 5px",
+                    background:"#f5f0e8", border:"1px solid #ddd6c8", borderRadius:3, color:"#6b7280" }}>
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </Section>
+      </div>
+    </div>
+  );
+}
+
 /* ── PlaceholderView ── */
 function PlaceholderView({ title, icon }) {
   return (
@@ -4206,6 +4431,269 @@ function PlaceholderView({ title, icon }) {
       <div className="bp-placeholder__icon">{icon ?? "🚧"}</div>
       <div className="bp-placeholder__title">{title}</div>
       <div className="bp-placeholder__sub">This section is coming soon.</div>
+    </div>
+  );
+}
+
+/* ── OrgSettingsView ── */
+function OrgSettingsView({ can }) {
+  const { activeOrg, switchOrg } = useApp();
+  const dispatch                 = useDispatch();
+  const selectedOrg      = useSelector((s) => s.orgs?.selectedOrg);
+  const selectedLoading  = useSelector((s) => s.orgs?.selectedOrgLoading ?? false);
+
+  const [settingsTab, setSettingsTab] = useState("general");
+  const [displayName, setDisplayName] = useState("");
+  const [saving, setSaving]           = useState(false);
+  const [saveMsg, setSaveMsg]         = useState(null);
+  const [saveErr, setSaveErr]         = useState(null);
+  const [dangerLoading, setDangerLoading] = useState(false);
+  const [dangerMsg, setDangerMsg]         = useState(null);
+
+  // Fetch full org details when mounted
+  useEffect(() => {
+    if (activeOrg?.id) {
+      dispatch(clearSelectedOrg());
+      dispatch(fetchOrg(activeOrg.id));
+    }
+  }, [activeOrg?.id, dispatch]);
+
+  // Use selectedOrg if it matches, else fall back to activeOrg
+  const org = (selectedOrg?.id === activeOrg?.id ? selectedOrg : null) ?? activeOrg ?? {};
+
+  // Sync form when org data arrives
+  useEffect(() => { setDisplayName(org?.name ?? ""); }, [org?.name]);
+
+  const isDirty = displayName.trim() !== (org?.name ?? "");
+
+  const handleSave = async () => {
+    if (!isDirty || saving) return;
+    setSaving(true); setSaveMsg(null); setSaveErr(null);
+    const res = await dispatch(apiUpdateOrg({ id: org.id, name: displayName.trim() }));
+    setSaving(false);
+    if (apiUpdateOrg.fulfilled.match(res)) {
+      setSaveMsg("Changes saved successfully.");
+      // Sync the updated name into AppContext so the sidebar / breadcrumb reflect it immediately
+      if (res.payload) switchOrg(res.payload);
+    } else {
+      setSaveErr(res.payload === "SUPER_ADMIN_REQUIRED"
+        ? "Only super admins can rename organisations."
+        : "Failed to save — please try again.");
+    }
+  };
+
+  const handleSuspend = async () => {
+    setDangerLoading(true); setDangerMsg(null);
+    const fn = org.status === "active" ? apiSuspendOrg : apiActivateOrg;
+    const res = await dispatch(fn(org.id));
+    setDangerLoading(false);
+    setDangerMsg(fn === apiSuspendOrg
+      ? (apiSuspendOrg.fulfilled.match(res) ? "Organization suspended." : "Failed to suspend.")
+      : (apiActivateOrg.fulfilled.match(res) ? "Organization activated." : "Failed to activate."));
+    if (fn === apiSuspendOrg ? apiSuspendOrg.fulfilled.match(res) : apiActivateOrg.fulfilled.match(res)) {
+      dispatch(fetchOrg(org.id));
+    }
+  };
+
+  const SETTINGS_TABS = ["general", "billing", "authentication", "data retention", "danger zone"];
+
+  const statusStyle = (s) => s === "active"
+    ? { bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d", dot: "#16a34a" }
+    : { bg: "#fee2e2", border: "#fca5a5", color: "#991b1b", dot: "#dc2626" };
+
+  const StatusBadge = ({ value }) => {
+    const st = statusStyle(value ?? "active");
+    return (
+      <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"2px 10px",
+        background: st.bg, border:`1px solid ${st.border}`, borderRadius:4,
+        fontSize:11, fontWeight:700, color: st.color }}>
+        <span style={{ width:6, height:6, borderRadius:"50%", background: st.dot, display:"inline-block" }} />
+        {(value ?? "active").toUpperCase()}
+      </span>
+    );
+  };
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1100 }}>
+      {/* Header */}
+      <p style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"#9ca3af", margin:"0 0 6px" }}>
+        {org.slug ? `${org.slug.toUpperCase()}.KINKO.IN` : "—"} · Organization Settings
+      </p>
+      <h1 style={{ fontSize:28, fontWeight:800, color:"#1a1a2e", margin:"0 0 5px", letterSpacing:"-0.02em" }}>Settings</h1>
+      <p style={{ fontSize:13, color:"#6b7280", margin:"0 0 16px" }}>
+        Organization profile, billing, and integrations. Slug cannot be changed after creation.
+      </p>
+      <hr style={{ border:"none", borderTop:"1px solid #e0d9cc", margin:"0 0 0" }} />
+
+      {/* Tab nav */}
+      <div style={{ display:"flex", gap:0, borderBottom:"1px solid #e0d9cc", marginBottom:28 }}>
+        {SETTINGS_TABS.map((tab) => (
+          <button key={tab} onClick={() => { setSettingsTab(tab); setSaveMsg(null); setSaveErr(null); setDangerMsg(null); }}
+            style={{
+              padding:"10px 18px", background:"none", border:"none",
+              borderBottom: settingsTab === tab ? "2px solid #1a1a2e" : "2px solid transparent",
+              fontFamily:"inherit", fontSize:13, fontWeight: settingsTab === tab ? 600 : 400,
+              color: settingsTab === tab ? "#1a1a2e" : "#6b7280",
+              cursor:"pointer", transition:"color 0.15s", marginBottom:-1,
+              textTransform:"capitalize",
+            }}>{tab}</button>
+        ))}
+      </div>
+
+      {/* ── General tab ── */}
+      {settingsTab === "general" && (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 320px", gap:20, alignItems:"start" }}>
+
+          {/* Left: org profile form */}
+          <div style={{ background:"#fff", border:"1px solid #e0d9cc", borderRadius:10, padding:"24px 28px" }}>
+            <h3 style={{ fontSize:15, fontWeight:700, color:"#1a1a2e", margin:"0 0 3px" }}>Organization profile</h3>
+            <p style={{ fontSize:12, color:"#9ca3af", margin:"0 0 24px" }}>Visible to operators and on the consumer verify portal.</p>
+
+            {selectedLoading ? (
+              <div className="empty-state"><p className="empty-state__text">Loading…</p></div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:18 }}>
+                {/* Display name */}
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:700, textTransform:"uppercase",
+                    letterSpacing:"0.08em", color:"#9ca3af", marginBottom:6 }}>Display Name</label>
+                  <input
+                    value={displayName}
+                    onChange={(e) => { setDisplayName(e.target.value); setSaveMsg(null); setSaveErr(null); }}
+                    style={{ width:"100%", boxSizing:"border-box", padding:"8px 12px",
+                      background:"#fff", border:"1px solid #ddd6c8", borderRadius:6,
+                      fontSize:13, color:"#1a1a2e", fontFamily:"inherit", outline:"none",
+                      transition:"border-color 0.15s" }}
+                    onFocus={(e) => e.target.style.borderColor = "#c0392b"}
+                    onBlur={(e) => e.target.style.borderColor = "#ddd6c8"}
+                  />
+                </div>
+                {/* Slug (read-only) */}
+                <div>
+                  <label style={{ display:"block", fontSize:10, fontWeight:700, textTransform:"uppercase",
+                    letterSpacing:"0.08em", color:"#9ca3af", marginBottom:6 }}>Slug (Read-only)</label>
+                  <input
+                    value={org.slug ?? ""}
+                    readOnly
+                    style={{ width:"100%", boxSizing:"border-box", padding:"8px 12px",
+                      background:"#f5f0e8", border:"1px solid #ddd6c8", borderRadius:6,
+                      fontSize:13, color:"#9ca3af", fontFamily:"monospace",
+                      cursor:"not-allowed", outline:"none" }}
+                  />
+                </div>
+
+                {/* Success / error */}
+                {saveMsg && <p style={{ margin:0, fontSize:12, color:"#059669", fontWeight:500 }}>✓ {saveMsg}</p>}
+                {saveErr && <p style={{ margin:0, fontSize:12, color:"#c0392b" }}>⚠ {saveErr}</p>}
+
+                {/* Actions */}
+                <div style={{ display:"flex", gap:10 }}>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || !isDirty}
+                    style={{
+                      padding:"9px 20px", background:"#1a1a2e", border:"none", borderRadius:7,
+                      color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer",
+                      fontFamily:"inherit", opacity: (saving || !isDirty) ? 0.45 : 1,
+                      transition:"background 0.15s",
+                    }}
+                    onMouseEnter={(e) => { if (!saving && isDirty) e.target.style.background="#111827"; }}
+                    onMouseLeave={(e) => e.target.style.background="#1a1a2e"}
+                  >{saving ? "Saving…" : "Save changes"}</button>
+                  <button
+                    onClick={() => { setDisplayName(org.name ?? ""); setSaveMsg(null); setSaveErr(null); }}
+                    style={{ padding:"9px 16px", background:"none", border:"none", borderRadius:7,
+                      color:"#6b7280", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: metadata */}
+          <div style={{ background:"#fff", border:"1px solid #e0d9cc", borderRadius:10, padding:"24px 28px" }}>
+            <h3 style={{ fontSize:15, fontWeight:700, color:"#1a1a2e", margin:"0 0 20px" }}>Metadata</h3>
+            {[
+              { label:"Org ID",   value: <span style={{ fontFamily:"monospace", fontSize:11, color:"#6b7280", wordBreak:"break-all" }}>{org.id ?? "—"}</span> },
+              { label:"Created",  value: org.createdAt ? new Date(org.createdAt).toLocaleDateString("en-GB", { year:"numeric", month:"2-digit", day:"2-digit" }) : "—" },
+              { label:"KYC",      value: <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"2px 10px", background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:4, fontSize:11, fontWeight:700, color:"#15803d" }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#16a34a", display:"inline-block" }} />VERIFIED</span> },
+              { label:"Status",   value: <StatusBadge value={org.status} /> },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ display:"grid", gridTemplateColumns:"100px 1fr", gap:8, marginBottom:14, alignItems:"center" }}>
+                <span style={{ fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.08em", color:"#9ca3af" }}>{label}</span>
+                <span style={{ fontSize:13, color:"#1a1a2e" }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Danger Zone tab ── */}
+      {settingsTab === "danger zone" && (
+        <div style={{ background:"#fff", border:"1px solid #fca5a5", borderRadius:10, padding:"24px 28px" }}>
+          <h3 style={{ fontSize:15, fontWeight:700, color:"#991b1b", margin:"0 0 4px" }}>Danger Zone</h3>
+          <p style={{ fontSize:12, color:"#9ca3af", margin:"0 0 20px" }}>Irreversible actions — proceed with caution.</p>
+          {dangerMsg && <p style={{ fontSize:12, color:"#6b7280", margin:"0 0 16px" }}>{dangerMsg}</p>}
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {/* Suspend / Activate */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+              padding:"14px 16px", border:"1px solid #e0d9cc", borderRadius:8 }}>
+              <div>
+                <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#1a1a2e" }}>
+                  {(org.status ?? "active") === "active" ? "Suspend organization" : "Activate organization"}
+                </p>
+                <p style={{ margin:"2px 0 0", fontSize:11, color:"#9ca3af" }}>
+                  {(org.status ?? "active") === "active"
+                    ? "Disable all access for this org's operators."
+                    : "Re-enable access for this org's operators."}
+                </p>
+              </div>
+              <button onClick={handleSuspend} disabled={dangerLoading}
+                style={{
+                  padding:"7px 16px", borderRadius:7, fontSize:12, fontWeight:600,
+                  cursor:"pointer", fontFamily:"inherit", border:"1px solid",
+                  ...(org.status ?? "active") === "active"
+                    ? { background:"#fff7ed", borderColor:"#fed7aa", color:"#c2410c" }
+                    : { background:"#f0fdf4", borderColor:"#bbf7d0", color:"#15803d" },
+                  opacity: dangerLoading ? 0.5 : 1,
+                }}>
+                {dangerLoading ? "…" : (org.status ?? "active") === "active" ? "Suspend" : "Activate"}
+              </button>
+            </div>
+            {/* Delete */}
+            {!org.isDefault && (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                padding:"14px 16px", border:"1px solid #fca5a5", borderRadius:8 }}>
+                <div>
+                  <p style={{ margin:0, fontSize:13, fontWeight:600, color:"#1a1a2e" }}>Delete organization</p>
+                  <p style={{ margin:"2px 0 0", fontSize:11, color:"#9ca3af" }}>
+                    Permanently soft-delete this organization. This cannot be undone.
+                  </p>
+                </div>
+                <button onClick={() => dispatch(apiDeleteOrg(org.id))} disabled={dangerLoading}
+                  style={{ padding:"7px 16px", background:"#fee2e2", border:"1px solid #fca5a5",
+                    borderRadius:7, color:"#991b1b", fontSize:12, fontWeight:600,
+                    cursor:"pointer", fontFamily:"inherit", opacity: dangerLoading ? 0.5 : 1 }}>
+                  Delete
+                </button>
+              </div>
+            )}
+            {org.isDefault && (
+              <p style={{ fontSize:12, color:"#9ca3af", margin:0 }}>ℹ The default organization cannot be deleted.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Placeholder tabs ── */}
+      {["billing","authentication","data retention"].includes(settingsTab) && (
+        <div style={{ textAlign:"center", padding:"70px 0", color:"#9ca3af" }}>
+          <div style={{ fontSize:36, marginBottom:14 }}>🚧</div>
+          <div style={{ fontSize:15, fontWeight:700, color:"#6b7280", textTransform:"capitalize" }}>{settingsTab}</div>
+          <div style={{ fontSize:12, marginTop:5 }}>Coming soon</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4337,7 +4825,7 @@ export default function SuperAdminDashboard() {
             <ModuleTab key="global-audit" module="AUDIT" actions={moduleActionMap.AUDIT ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} isGlobal={true} />
           </div>
         );
-        case "system-settings": return <PlaceholderView title="System Settings" icon="⚙️" />;
+        case "system-settings": return <SystemSettingsView />;
         default:               return <OrgLandingView onEnterOrg={handleEnterOrg} can={can} />;
       }
     }
@@ -4350,7 +4838,7 @@ export default function SuperAdminDashboard() {
       case "BULK":      return <ModuleTab key={tabKey} module="BULK"     actions={moduleActionMap.BULK    ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
       case "AUDIT":     return <ModuleTab key={tabKey} module="AUDIT"    actions={moduleActionMap.AUDIT   ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
       case "USER":      return <ModuleTab key={tabKey} module="USER"     actions={moduleActionMap.USER    ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
-      case "settings":  return <ModuleTab key={tabKey} module="ORG"      actions={moduleActionMap.ORG     ?? new Set()} can={can} onJobsLoad={setBulkJobsCount} />;
+      case "settings":  return <OrgSettingsView can={can} />;
       default:          return <OrgDashboardView onNavigate={handleNavClick} />;
     }
   };
@@ -4509,7 +4997,7 @@ export default function SuperAdminDashboard() {
                 {moduleActionMap.BULK && <NavItem icon="📦" label="Bulk Upload"  view="BULK" activeView={activeView} onClick={handleNavClick} count={bulkJobsCount > 0 ? bulkJobsCount : null} />}
                 <div className="bp-nav__section">Compliance</div>
                 {moduleActionMap.AUDIT && <NavItem icon="📋" label="Audit Log" view="AUDIT"    activeView={activeView} onClick={handleNavClick} />}
-                {moduleActionMap.ORG   && <NavItem icon="⚙️" label="Settings"  view="settings" activeView={activeView} onClick={handleNavClick} />}
+                <NavItem icon="⚙️" label="Settings"  view="settings" activeView={activeView} onClick={handleNavClick} />
               </>
             )}
           </nav>

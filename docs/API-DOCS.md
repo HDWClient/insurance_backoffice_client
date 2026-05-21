@@ -1,7 +1,12 @@
-> Last Updated: 2026-04-22 (updated: cookie flags, permission count, port, added Org & Me endpoints)
-> **Source of truth for frontend integration.** Reflects what is actually deployed, not the spec.
+> ⚠️ **DEPRECATED — historical reference only.** Last updated 2026-04-24, kept for archive. Do **not** rely on this document for current shapes — it predates Plan B (bulk upload, verification portal, consumer users), the audit-log enrichment, the renamed error codes (`OTP_EXHAUSTED`, `REFRESH_REVOKED`, `REFRESH_EXPIRED`, `REFRESH_DEVICE_MISMATCH`, `SLUG_DUPLICATE`), and the `/auth/refresh` body shape change.
+>
+> **Use these instead:**
+> - [api-reference.md](api-reference.md) — canonical module index, defers shape detail to live Swagger
+> - [endpoint-guide.md](endpoint-guide.md) — single-page operator guide with curl-style examples (incl. bulk / verify / consumer-users sections)
+> - [changes-cms-users-rename.md](changes-cms-users-rename.md) and [changes-bulk-upload-and-users.md](changes-bulk-upload-and-users.md) — applied-change logs
+> - **Live Swagger:** `${BASE_URL}/swagger-ui.html` — authoritative for request/response shapes
 
-# Backoffice API — Frontend Integration Docs
+# Backoffice API — Frontend Integration Docs (Deprecated)
 
 ## Contents
 - [Base URL & Setup](#base-url--setup)
@@ -11,6 +16,7 @@
 - [Role & Permission Endpoints](#role--permission-endpoints)
 - [Organization Endpoints](#organization-endpoints)
 - [Me Endpoints](#me-endpoints)
+- [Audit Log Endpoints](#audit-log-endpoints)
 - [Error Codes Reference](#error-codes-reference)
 - [Cookie Behaviour](#cookie-behaviour)
 - [Testing Locally](#testing-locally)
@@ -137,7 +143,7 @@ Send a 6-digit OTP to an email address. Use before OTP login, forgot-password, o
 
 | errorCode | HTTP | When |
 |-----------|------|------|
-| `USER_NOT_FOUND` | 401 | Email not in system (invite-only platform — OK to surface this) |
+| `CMS_USER_NOT_FOUND` | 401 | Email not in system (invite-only platform — OK to surface this) |
 | `VALIDATION_ERROR` | 400 | Missing fields |
 
 ---
@@ -264,7 +270,7 @@ Accept an admin invite. Verifies the invite OTP, sets a password, activates the 
 }
 ```
 
-> OTP is sent to email when admin sends the invite (via `/users/invite`).
+> OTP is sent to email when admin sends the invite (via `/cms-users/invite`).
 
 **Response `200`:** Sets cookies, same as login.
 ```json
@@ -353,7 +359,7 @@ All user endpoints require:
 
 ---
 
-### GET `/users`
+### GET `/cms-users`
 
 List all CMS users in the current org. Paginated.
 
@@ -396,11 +402,11 @@ X-ORG-ID: 550e8400-e29b-41d4-a716-446655440000
 }
 ```
 
-**Errors:** `FORBIDDEN` (403) if missing `USER_READ` permission.
+**Errors:** `FORBIDDEN` (403) if missing `CMS_USER_READ` permission.
 
 ---
 
-### GET `/users/{id}`
+### GET `/cms-users/{id}`
 
 Fetch a single user by UUID.
 
@@ -411,13 +417,13 @@ Fetch a single user by UUID.
 | errorCode | HTTP | When |
 |-----------|------|------|
 | `NOT_FOUND` | 404 | User doesn't exist or belongs to a different org |
-| `FORBIDDEN` | 403 | Missing `USER_READ` permission |
+| `FORBIDDEN` | 403 | Missing `CMS_USER_READ` permission |
 
 ---
 
-### POST `/users`
+### POST `/cms-users`
 
-Create a new active user with a known password. Use `/users/invite` for the invite-OTP flow.
+Create a new active user with a known password. Use `/cms-users/invite` for the invite-OTP flow.
 
 **Request:**
 ```json
@@ -436,11 +442,11 @@ Create a new active user with a known password. Use `/users/invite` for the invi
 |-----------|------|------|
 | `DUPLICATE_EMAIL` | 409 | Email already registered |
 | `VALIDATION_ERROR` | 400 | Missing fields or password < 8 chars |
-| `FORBIDDEN` | 403 | Missing `USER_CREATE` permission |
+| `FORBIDDEN` | 403 | Missing `CMS_USER_CREATE` permission |
 
 ---
 
-### POST `/users/invite`
+### POST `/cms-users/invite`
 
 Invite a user to the org. Creates a `pending_verification` user and triggers the OTP invite email. The user completes signup via `POST /auth/invite/accept`.
 
@@ -461,11 +467,11 @@ If the email already exists as `inactive` in this org, the user is smart-revived
 | errorCode | HTTP | When |
 |-----------|------|------|
 | `DUPLICATE_EMAIL` | 409 | Email exists and is active/pending (not revivable) |
-| `FORBIDDEN` | 403 | Missing `USER_CREATE` permission |
+| `FORBIDDEN` | 403 | Missing `CMS_USER_CREATE` permission |
 
 ---
 
-### PUT `/users/{id}`
+### PUT `/cms-users/{id}`
 
 Update a user's profile (currently `fullName` only).
 
@@ -478,11 +484,11 @@ Update a user's profile (currently `fullName` only).
 
 **Response `200`:** Updated user object.
 
-**Errors:** `NOT_FOUND` (404), `FORBIDDEN` (403 — missing `USER_UPDATE`).
+**Errors:** `NOT_FOUND` (404), `FORBIDDEN` (403 — missing `CMS_USER_UPDATE`).
 
 ---
 
-### DELETE `/users/{id}`
+### DELETE `/cms-users/{id}`
 
 Soft-delete a user (status → `inactive`). The account is retained; the user cannot log in.
 
@@ -499,11 +505,11 @@ Guards:
 | `SELF_DELETE` | 403 | Attempting to delete your own account |
 | `SUPER_ADMIN_DELETE` | 403 | Target is a super admin |
 | `NOT_FOUND` | 404 | User not in this org |
-| `FORBIDDEN` | 403 | Missing `USER_DELETE` permission |
+| `FORBIDDEN` | 403 | Missing `CMS_USER_DELETE` permission |
 
 ---
 
-### POST `/users/{id}/revive`
+### POST `/cms-users/{id}/revive`
 
 Reactivate a soft-deleted user (status `inactive` → `active`).
 
@@ -515,13 +521,15 @@ Reactivate a soft-deleted user (status `inactive` → `active`).
 |-----------|------|------|
 | `NOT_INACTIVE` | 403 | User is not inactive |
 | `NOT_FOUND` | 404 | User not in this org |
-| `FORBIDDEN` | 403 | Missing `USER_UPDATE` permission |
+| `FORBIDDEN` | 403 | Missing `CMS_USER_UPDATE` permission |
 
 ---
 
-### GET `/users/{userId}/roles`
+### GET `/cms-users/{userId}/roles`
 
-Get all roles currently assigned to a user.
+Get roles assigned to a user **within the org from `X-ORG-ID`**. Returns 404 if the user doesn't belong to that org.
+
+**Headers:** `X-ORG-ID` required.
 
 **Response `200`:**
 ```json
@@ -535,7 +543,7 @@ Get all roles currently assigned to a user.
       "orgSlug": "acme",
       "systemRole": true,
       "permissions": [
-        { "id": "perm-uuid", "code": "USER_READ", "module": "USER", "action": "READ" }
+        { "id": "perm-uuid", "code": "CMS_USER_READ", "module": "USER", "action": "READ" }
       ]
     }
   ]
@@ -544,7 +552,7 @@ Get all roles currently assigned to a user.
 
 ---
 
-### POST `/users/{userId}/roles`
+### POST `/cms-users/{userId}/roles`
 
 Assign a role to a user.
 
@@ -566,7 +574,7 @@ Assign a role to a user.
 
 ---
 
-### DELETE `/users/{userId}/roles/{roleId}`
+### DELETE `/cms-users/{userId}/roles/{roleId}`
 
 Revoke a role from a user.
 
@@ -585,8 +593,8 @@ List all system permission codes. Use `id` values when assigning permissions to 
 {
   "success": true,
   "data": [
-    { "id": "perm-uuid", "code": "USER_READ", "module": "USER", "action": "READ" },
-    { "id": "perm-uuid", "code": "USER_CREATE", "module": "USER", "action": "CREATE" }
+    { "id": "perm-uuid", "code": "CMS_USER_READ", "module": "USER", "action": "READ" },
+    { "id": "perm-uuid", "code": "CMS_USER_CREATE", "module": "USER", "action": "CREATE" }
   ]
 }
 ```
@@ -598,6 +606,57 @@ List all system permission codes. Use `id` values when assigning permissions to 
 List all roles (custom + system) in the current org.
 
 **Response `200`:** Array of role objects (same shape as user-roles response).
+
+---
+
+### GET `/roles/{id}/cms-users`
+
+List all users in the org who currently hold this role. Use this before deleting a role to know which assignments need to be revoked first.
+
+**Headers:** `X-ORG-ID` required.
+
+**Response `200`:** Array of user objects (same shape as `GET /cms-users` items).
+
+**Errors:**
+
+| errorCode | HTTP | When |
+|-----------|------|------|
+| `NOT_FOUND` | 404 | Role doesn't exist or belongs to a different org |
+| `FORBIDDEN` | 403 | Missing `ROLE_MANAGE` permission |
+
+---
+
+### DELETE `/roles/{id}/cms-users`
+
+Bulk revoke a role from multiple users in one call. Useful when deleting a role — fetch its user list with `GET /roles/{id}/cms-users`, pass all the IDs here, then delete the role.
+
+**Headers:** `X-ORG-ID` required.
+
+**Request:**
+```json
+{ "userIds": ["uuid-1", "uuid-2", "uuid-3"] }
+```
+
+**Response `200`:**
+```json
+{
+  "success": true,
+  "data": {
+    "revoked": 3,
+    "notFound": []
+  }
+}
+```
+
+> `notFound` contains any userIds that didn't hold this role — they are silently skipped, not an error. `revoked` is the count of assignments actually removed.
+
+**Errors:**
+
+| errorCode | HTTP | When |
+|-----------|------|------|
+| `NOT_FOUND` | 404 | Role doesn't exist or belongs to a different org |
+| `FORBIDDEN` | 403 | Missing `ROLE_ASSIGN` permission |
+| `VALIDATION_ERROR` | 400 | `userIds` is empty or missing |
 
 ---
 
@@ -721,19 +780,25 @@ Create a new org. **Super admin only.** Auto-creates the 3 default system roles 
 
 ### PUT `/orgs/{id}`
 
-Update an org's **name** only. Slug is immutable.
+Update an org's **name** only. Slug is immutable. **Super admin only.**
 
 **Request:** `{ "name": "Deltatech Gaming Ltd" }`
 
 **Response `200`:** Updated org object.
 
-**Errors:** `NOT_FOUND` (404), `FORBIDDEN` (403 — missing `ORG_UPDATE`).
+**Errors:**
+
+| errorCode | HTTP | When |
+|-----------|------|------|
+| `SUPER_ADMIN_REQUIRED` | 403 | Caller is not a super admin |
+| `NOT_FOUND` | 404 | Org not found |
+| `FORBIDDEN` | 403 | Missing `ORG_UPDATE` permission |
 
 ---
 
 ### POST `/orgs/{id}/suspend`
 
-Suspend an org (sets status → `inactive`). Cannot suspend the default org.
+Suspend an org (sets status → `inactive`). Cannot suspend the default org. **Super admin only.**
 
 > ⚠️ Schema note: `OrgStatus` enum only has `active`/`inactive` in Prisma — `suspended` is pending a kinko_db PR. Currently maps to `inactive`.
 
@@ -743,6 +808,7 @@ Suspend an org (sets status → `inactive`). Cannot suspend the default org.
 
 | errorCode | HTTP | When |
 |-----------|------|------|
+| `SUPER_ADMIN_REQUIRED` | 403 | Caller is not a super admin |
 | `DEFAULT_ORG` | 403 | Cannot suspend the default org |
 | `ORG_DELETED` | 403 | Org is already inactive |
 | `FORBIDDEN` | 403 | Missing `ORG_UPDATE` permission |
@@ -751,9 +817,16 @@ Suspend an org (sets status → `inactive`). Cannot suspend the default org.
 
 ### POST `/orgs/{id}/activate`
 
-Reactivate a suspended org (sets status → `active`).
+Reactivate a suspended org (sets status → `active`). **Super admin only.**
 
 **Response `200`:** Updated org object.
+
+**Errors:**
+
+| errorCode | HTTP | When |
+|-----------|------|------|
+| `SUPER_ADMIN_REQUIRED` | 403 | Caller is not a super admin |
+| `NOT_FOUND` | 404 | Org not found |
 
 ---
 
@@ -777,9 +850,9 @@ Soft-delete an org (sets status → `inactive`). **Super admin only.** Cannot de
 
 ### GET `/me/permissions`
 
-Returns the set of permission codes the calling user holds in the active org.
+Returns the calling user's permissions grouped by module for the active org.
 
-- **Super admin**: returns all 19 permission codes regardless of org
+- **Super admin**: returns all permissions regardless of org
 - **Regular user**: returns only the permissions they hold via their assigned roles in the org from `X-ORG-ID`
 
 Use this to conditionally show/hide UI elements without waiting for a 403.
@@ -790,9 +863,19 @@ Use this to conditionally show/hide UI elements without waiting for a 403.
 ```json
 {
   "success": true,
-  "data": ["USER_READ", "USER_CREATE", "ROLE_MANAGE", "ORG_READ", "..."]
+  "data": {
+    "ROLE": ["MANAGE", "ASSIGN"],
+    "USER": ["READ", "CREATE", "UPDATE", "DELETE"],
+    "ORG": ["READ", "UPDATE"],
+    "MEMBER": ["READ", "CREATE", "UPDATE", "DELETE"],
+    "DEPENDENT": ["READ", "CREATE", "UPDATE", "DELETE"],
+    "BULK": ["UPLOAD", "READ"],
+    "AUDIT": ["READ"]
+  }
 }
 ```
+
+Modules only appear if the user has at least one action in that module. A read-only user will only see `["READ"]` under each module they can access.
 
 > Call this once after login and cache the result in app state. Re-fetch after org switching or role changes.
 
@@ -842,6 +925,101 @@ All accounts use password: **`Dev@12345`**
 
 ---
 
+## Audit Log Endpoints
+
+> Requires permission: `AUDIT_READ` (held by all default system roles including FullReadOnly).
+> All responses are scoped to the caller's org — users cannot see audit logs from other orgs.
+
+---
+
+### GET `/audit`
+
+Query audit logs. Always sorted newest-first. Paginated.
+
+**Headers:** `X-ORG-ID` — required.
+
+**Query params:**
+
+| Param | Type | Notes |
+|-------|------|-------|
+| `entityType` | string | Filter by entity — `User`, `Role`, `Organization`, `Member`, `Dependent` |
+| `entityId` | UUID | Filter to a specific record's history |
+| `action` | string | `CREATE`, `UPDATE`, `DELETE`, `REVIVE`, `ROLE_ASSIGNED`, `ROLE_REVOKED`, `BULK_UPLOAD_CREATED`, `BULK_UPLOAD_COMPLETED` |
+| `actorUserId` | UUID | Filter by who performed the action |
+| `from` | ISO 8601 datetime | Start of date range (inclusive) e.g. `2026-04-01T00:00:00Z` |
+| `to` | ISO 8601 datetime | End of date range (inclusive) |
+| `page` | int | 0-based, default `0` |
+| `size` | int | Default `20` |
+
+All params are optional — omitting returns all logs for the org.
+
+**Response `200`:**
+```json
+{
+  "success": true,
+  "data": {
+    "page": 0,
+    "size": 20,
+    "totalItems": 42,
+    "totalPages": 3,
+    "hasNext": true,
+    "items": [
+      {
+        "id": "fb9eddc3-...",
+        "actorUserId": "53d452b6-...",
+        "organizationId": "87db2d5d-...",
+        "orgSlug": "kinko",
+        "action": "UPDATE",
+        "entityType": "User",
+        "entityId": "14372fdf-...",
+        "oldValue": "{\"fullName\": \"Test User\", \"status\": \"active\", ...}",
+        "newValue": "{\"fullName\": \"Updated Name\", \"status\": \"active\", ...}",
+        "diff": "{\"fullName\": {\"before\": \"Test User\", \"after\": \"Updated Name\"}}",
+        "createdAt": "2026-04-23T10:39:05.274Z"
+      }
+    ]
+  }
+}
+```
+
+> `oldValue`, `newValue`, and `diff` are JSON strings (not objects) — parse them client-side if you want to render the diff. `diff` is `null` for `DELETE`, `ROLE_ASSIGNED`, `ROLE_REVOKED`, and `BULK_UPLOAD_*` actions.
+
+**Errors:** `FORBIDDEN` (403) — missing `AUDIT_READ` permission.
+
+---
+
+### GET `/audit/{id}`
+
+Fetch a single audit log entry by UUID.
+
+**Headers:** `X-ORG-ID` — required.
+
+**Response `200`:** Single audit log object (same shape as items above).
+
+**Errors:**
+
+| errorCode | HTTP | When |
+|-----------|------|------|
+| `NOT_FOUND` | 404 | Log doesn't exist or belongs to a different org |
+| `FORBIDDEN` | 403 | Missing `AUDIT_READ` permission |
+
+---
+
+### Audit action reference
+
+| Action | entityType | What it means |
+|--------|------------|---------------|
+| `CREATE` | User / Role / Organization | Entity was created |
+| `UPDATE` | User / Role / Organization | Fields were changed — check `diff` |
+| `DELETE` | User / Role / Organization | Soft deleted |
+| `REVIVE` | User | Reactivated from inactive |
+| `ROLE_ASSIGNED` | User | A role was granted — `newValue` has role details |
+| `ROLE_REVOKED` | User | A role was removed — `oldValue` has role details |
+| `BULK_UPLOAD_CREATED` | BulkUpload | Upload job submitted |
+| `BULK_UPLOAD_COMPLETED` | BulkUpload | Job finished — `newValue` has summary stats |
+
+---
+
 ## Error Codes Reference
 
 ### Auth errors
@@ -856,7 +1034,7 @@ All accounts use password: **`Dev@12345`**
 | `OTP_INVALIDATED` | 401 | "Too many wrong attempts — request a new OTP" |
 | `INVALID_OTP` | 401 | "Incorrect OTP — X attempts remaining" |
 | `INVALID_VERIFY_TOKEN` | 401 | "Link expired — restart the flow" |
-| `USER_NOT_FOUND` | 401 | "Email not found" |
+| `CMS_USER_NOT_FOUND` | 401 | "Email not found" |
 
 ### Session errors (interceptor handles these)
 
@@ -900,7 +1078,7 @@ You **cannot** read these cookies from JavaScript. You don't need to — the bro
 
 ### Automated test suite
 
-Runs all API scenarios (auth, permissions, roles, users, user-roles, org management, access-control), then cleans up every resource it created. Re-running is safe — a pre-run sweep removes anything left by a previous interrupted run.
+Runs all API scenarios (auth, permissions, roles, users, user-roles, org management, access-control, **audit log verification**), then cleans up every resource it created. Re-running is safe — a pre-run sweep removes anything left by a previous interrupted run.
 
 ```bash
 # From kinko-backoffice-backend/
@@ -923,7 +1101,7 @@ curl -X POST http://localhost:8008/auth/login/password \
   -c /tmp/cookies.txt
 
 # 2. Call a protected endpoint (replace ORG_ID with id from login response)
-curl http://localhost:8008/users \
+curl http://localhost:8008/cms-users \
   -H "X-ORG-ID: <org-id>" \
   -b /tmp/cookies.txt
 

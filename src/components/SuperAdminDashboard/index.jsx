@@ -2268,11 +2268,39 @@ function BulkModuleTab({ actions, onJobsLoad }) {
           )}
         </div>
 
+        {/* Upfront row/invalid summary banner */}
+        {((detailJob.invalidRows ?? 0) > 0 || (detailJob.totalRows ?? 0) > 0) && (
+          <div style={{
+            display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+            padding: "10px 20px", background: (detailJob.invalidRows ?? 0) > 0 ? "#fff8f0" : "#f0fdf4",
+            borderBottom: `2px solid ${(detailJob.invalidRows ?? 0) > 0 ? "#fed7aa" : "#bbf7d0"}`,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#1a1a2e" }}>
+              {(detailJob.totalRows ?? 0).toLocaleString()} rows total
+            </span>
+            <span style={{ color: "#ddd6c8" }}>·</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#16a34a" }}>
+              ✓ {(detailJob.parsedRows ?? 0).toLocaleString()} verified
+            </span>
+            {(detailJob.invalidRows ?? 0) > 0 && (
+              <>
+                <span style={{ color: "#ddd6c8" }}>·</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>
+                  ✕ {detailJob.invalidRows.toLocaleString()} invalid
+                </span>
+                <span style={{ fontSize: 12, color: "#b45309", marginLeft: 4 }}>
+                  — review and correct these rows before dispatching invites
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Key stats strip */}
         <div className="bulk-summary-strip">
           {[
             { label: "Total Rows",  value: detailJob.totalRows  ?? "—", accent: "#6366f1" },
-            { label: "Valid",       value: detailJob.parsedRows  ?? "—", accent: "#16a34a" },
+            { label: "Verified",    value: detailJob.parsedRows  ?? "—", accent: "#16a34a" },
             { label: "Invalid",     value: detailJob.invalidRows ?? 0,   accent: (detailJob.invalidRows ?? 0) > 0 ? "#dc2626" : "#94a3b8" },
             { label: "Submitted",   value: detailJob.createdAt ? new Date(detailJob.createdAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "—", accent: "#64748b", small: true },
           ].map(({ label, value, accent, small }) => (
@@ -2302,6 +2330,7 @@ function BulkModuleTab({ actions, onJobsLoad }) {
             {dispatchErr && <div className="bulk-action-panel__err">⚠ {dispatchErr}</div>}
           </div>
         )}
+
 
         {/* Enrollment progress breakdown */}
         {Object.keys(stats).length > 0 && (
@@ -2412,13 +2441,15 @@ function BulkModuleTab({ actions, onJobsLoad }) {
                     const isDraft       = row.status === "DRAFT";
                     const canResend     = ["STAGED","OTP_SENT","INVITE_FAILED","EXPIRED"].includes(row.status);
                     const canCancel     = !terminal;
+                    // Strip API-prefixed "v0:" from field values
+                    const strip = (v) => (typeof v === "string" && v.startsWith("v0:") ? v.slice(3) : v) || "—";
                     return (
                       <>
                         <tr key={row.id}>
                           <td className="tbl__muted">{row.rowNumber}</td>
-                          <td><span className="tbl__bold">{row.name || "—"}</span></td>
-                          <td className="tbl__mono">{row.email || "—"}</td>
-                          <td className="tbl__mono">{row.mobile || "—"}</td>
+                          <td><span className="tbl__bold">{strip(row.name)}</span></td>
+                          <td className="tbl__mono">{strip(row.email)}</td>
+                          <td className="tbl__mono">{strip(row.mobile)}</td>
                           <td>
                             <span className={`badge ${rowStatusClass(row.status)}`}>{row.status}</span>
                             {row.rejectionReason && (
@@ -2428,8 +2459,10 @@ function BulkModuleTab({ actions, onJobsLoad }) {
                             )}
                           </td>
                           <td className="tbl__muted">
-                            {row.inviteSentCount ?? 0}×
-                            {row.inviteLastSentAt ? ` (${new Date(row.inviteLastSentAt).toLocaleDateString()})` : ""}
+                            {(row.inviteSentCount ?? 0) === 0
+                              ? <span style={{ color:"#d1d5db" }}>—</span>
+                              : <>{row.inviteSentCount} sent{row.inviteLastSentAt ? ` · ${new Date(row.inviteLastSentAt).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}` : ""}</>
+                            }
                           </td>
                           {canUpload && (
                             <td>
@@ -2585,7 +2618,7 @@ function BulkModuleTab({ actions, onJobsLoad }) {
           </div>
           <div className="bulk-kpi bulk-kpi--success">
             <span className="bulk-kpi__val">{totalValid > 0 ? totalValid.toLocaleString() : "—"}</span>
-            <span className="bulk-kpi__lbl">Valid Rows</span>
+            <span className="bulk-kpi__lbl">Verified Rows</span>
           </div>
           {totalInvalid > 0 && (
             <div className="bulk-kpi bulk-kpi--warn">
@@ -2708,30 +2741,105 @@ function BulkModuleTab({ actions, onJobsLoad }) {
         ) : (
           <div className="bulk-jobs-list">
             {jobs.map((job) => {
-              const isActive = job.status === "PENDING" || job.status === "PROCESSING";
-              const validPct = job.totalRows > 0 ? Math.round((job.parsedRows ?? 0) / job.totalRows * 100) : 0;
+              const isActive   = job.status === "PENDING" || job.status === "PROCESSING";
+              const validPct   = job.totalRows > 0 ? Math.round((job.parsedRows ?? 0) / job.totalRows * 100) : 0;
               const hasInvalid = (job.invalidRows ?? 0) > 0;
-              const timeAgo = job.createdAt ? formatTimeAgo(new Date(job.createdAt)) : "—";
+              const rs         = job.rowStats ?? {};
+              const promoted   = rs.PROMOTED  ?? 0;
+              const rejected   = rs.REJECTED  ?? 0;
+              const draft      = rs.DRAFT     ?? 0;
+              const inProgress = (rs.STAGED ?? 0) + (rs.OTP_SENT ?? 0) + (rs.VERIFIED ?? 0);
+              const inviteFail = (rs.INVITE_FAILED ?? 0) + (rs.EXPIRED ?? 0);
+
+              const submittedDate = job.createdAt
+                ? new Date(job.createdAt).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) +
+                  " · " + new Date(job.createdAt).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", hour12:false })
+                : "—";
+
+              const statusDesc = {
+                PENDING:    "⏳ Queued — waiting to process",
+                PROCESSING: "⚙️ Processing rows…",
+                COMPLETED:  "✅ Processing complete",
+                FAILED:     "❌ Processing failed",
+                CANCELLED:  "⛔ Cancelled",
+              }[job.status] ?? job.status;
+
+              const pill = (label, color, bg) => (
+                <span key={label} style={{ display:"inline-flex", alignItems:"center", gap:3,
+                  fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20,
+                  background: bg, color, border:`1px solid ${color}20` }}>
+                  {label}
+                </span>
+              );
+
               return (
                 <div key={job.id} className={`bulk-job-card${isActive ? " bulk-job-card--active" : ""}`}>
                   <div className="bulk-job-card__num">#{job.jobNumber}</div>
                   <div className="bulk-job-card__info">
+                    {/* Filename + date */}
                     <span className="bulk-job-card__name">{job.fileName}</span>
-                    <div className="bulk-job-card__meta">
-                      <span>🕐 {timeAgo}</span>
-                      <span className="bulk-job-card__sep">·</span>
-                      <span>{(job.totalRows ?? 0).toLocaleString()} rows total</span>
-                      {hasInvalid && <span className="bulk-job-card__warn">⚠ {job.invalidRows} invalid</span>}
+                    <div className="bulk-job-card__meta" style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:11, color:"#9ca3af" }}>🕐 {submittedDate}</span>
+                      <span style={{ color:"#ddd6c8" }}>·</span>
+                      <span style={{ fontSize:11, color:"#9ca3af" }}>{statusDesc}</span>
                     </div>
+
+                    {/* Row counts summary */}
+                    {(job.totalRows ?? 0) > 0 && (
+                      <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, marginTop:5, flexWrap:"wrap" }}>
+                        <span style={{ color:"#374151", fontWeight:600 }}>
+                          {(job.totalRows ?? 0).toLocaleString()} rows total
+                        </span>
+                        <span style={{ color:"#ddd6c8" }}>·</span>
+                        <span style={{ color:"#16a34a", fontWeight:600 }}>
+                          ✓ {(job.parsedRows ?? 0).toLocaleString()} verified
+                        </span>
+                        {hasInvalid && (
+                          <>
+                            <span style={{ color:"#ddd6c8" }}>·</span>
+                            <span style={{ color:"#dc2626", fontWeight:600 }}>
+                              ⚠ {job.invalidRows} invalid
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Invalid rows elaboration */}
+                    {hasInvalid && (
+                      <div style={{ fontSize:11, marginTop:5, padding:"6px 10px",
+                        background:"#fff8f0", border:"1px solid #fed7aa", borderRadius:6, lineHeight:1.6 }}>
+                        <span style={{ fontWeight:700, color:"#c0392b" }}>
+                          ⚠ {job.invalidRows} row{job.invalidRows !== 1 ? "s" : ""} could not be imported
+                        </span>
+                        {" — "}these rows contain missing or incorrectly formatted fields
+                        (e.g. invalid email, missing mobile, or bad date format).
+                        {" "}
+                        <span style={{ color:"#9ca3af" }}>Open the job to review parse errors and fix the source file.</span>
+                      </div>
+                    )}
+
+                    {/* Per-status breakdown pills (when rowStats available) */}
+                    {Object.keys(rs).length > 0 && (
+                      <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:6 }}>
+                        {promoted   > 0 && pill(`✅ ${promoted} Enrolled`,      "#16a34a", "#f0fdf4")}
+                        {inProgress > 0 && pill(`📬 ${inProgress} In Progress`,  "#6366f1", "#eff6ff")}
+                        {draft      > 0 && pill(`📝 ${draft} Draft`,             "#94a3b8", "#f8fafc")}
+                        {rejected   > 0 && pill(`❌ ${rejected} Rejected`,       "#dc2626", "#fef2f2")}
+                        {inviteFail > 0 && pill(`⚠️ ${inviteFail} Invite Issues`, "#f59e0b", "#fffbeb")}
+                      </div>
+                    )}
+
+                    {/* Progress bar */}
                     {(job.totalRows ?? 0) > 0 && (
                       <div className="bulk-job-card__progress-row">
                         <div className="bulk-job-card__bar">
                           <div
                             className="bulk-job-card__bar-fill"
-                            style={{ width: `${validPct}%`, background: isActive ? undefined : "#16a34a" }}
+                            style={{ width:`${validPct}%`, background: isActive ? undefined : "#16a34a" }}
                           />
                         </div>
-                        <span className="bulk-job-card__pct">{validPct}% valid</span>
+                        <span className="bulk-job-card__pct">{validPct}% verified</span>
                       </div>
                     )}
                   </div>
@@ -3900,7 +4008,7 @@ function OrgLandingView({ onEnterOrg, can }) {
           <div className="bp-stat-box__sub">across all organisations</div>
         </div>
         <div className="bp-stat-box">
-          <div className="bp-stat-box__label">Bulk runs in flight</div>
+          <div className="bp-stat-box__label">No Of Bulk Operations</div>
           <div className={`bp-stat-box__value${totalBulk > 0 ? " bp-stat-box__value--accent" : ""}`}>{totalBulk}</div>
           <div className="bp-stat-box__sub">active bulk operations</div>
         </div>
@@ -4171,17 +4279,17 @@ function OrgDashboardView({ onNavigate }) {
       {/* Stats row */}
       <div className="bp-stats-row" style={{ marginBottom:28 }}>
         <div className="bp-stat-box">
-          <div className="bp-stat-box__label">Total Members</div>
+          <div className="bp-stat-box__label">Total Users</div>
           <div className="bp-stat-box__value">{totalMembers.toLocaleString()}</div>
           <div className="bp-stat-box__sub">consumer members</div>
         </div>
         <div className="bp-stat-box">
-          <div className="bp-stat-box__label">Operators</div>
+          <div className="bp-stat-box__label">Admin Operators</div>
           <div className="bp-stat-box__value">{usersTotal || "—"}</div>
           <div className="bp-stat-box__sub">backoffice users</div>
         </div>
         <div className="bp-stat-box">
-          <div className="bp-stat-box__label">Bulk Runs in Flight</div>
+          <div className="bp-stat-box__label">No Of Bulk Operations</div>
           <div className={`bp-stat-box__value${bulkInFlight > 0 ? " bp-stat-box__value--accent" : ""}`}>{bulkInFlight}</div>
           <div className="bp-stat-box__sub" style={{ cursor: bulkInFlight > 0 ? "pointer" : "default", color: bulkInFlight > 0 ? "#c0392b" : undefined }}
             onClick={bulkInFlight > 0 ? () => onNavigate("BULK") : undefined}>
